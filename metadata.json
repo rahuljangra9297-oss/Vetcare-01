@@ -1,0 +1,6 @@
+{
+  "name": "VETCARE AI OS",
+  "description": "An intelligent, daylight-vibrant operating system for Veterinary Doctors, Dairy Farmers, and Clinical Administrators.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
