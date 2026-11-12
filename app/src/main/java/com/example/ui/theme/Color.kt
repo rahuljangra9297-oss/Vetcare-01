@@ -20,6 +20,7 @@ val AmberWarningLight = Color(0xFFFFFBEB)
 val Slate900 = Color(0xFF0F172A)              // 100% Opacity Deep Slate for headings & body
 val Slate800 = Color(0xFF1E293B)
 val Slate700 = Color(0xFF334155)
+val Slate600 = Color(0xFF475569)
 val Slate500 = Color(0xFF64748B)
 val Slate300 = Color(0xFFCBD5E1)
 
@@ -39,4 +40,9 @@ val TealDark = Color(0xFF0F766E)
 // Status & Warnings
 val RedAlert = Color(0xFFDC2626)              // Emergency crimson, abortifacient alert
 val AmberWarning = Color(0xFFD97706)          // Low stock, moderate warning
+val AmberWarningDark = Color(0xFFB45309)
 val GreenSuccess = Color(0xFF10B981)          // Safe, confirmed, verified
+val GreenSuccessLight = Color(0xFFDCFCE7)
+val GreenSuccessDark = Color(0xFF15803D)
+val Slate100 = Color(0xFFF1F5F9)
+

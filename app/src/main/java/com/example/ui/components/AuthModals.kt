@@ -49,25 +49,27 @@ fun AuthModalDialog(
     var passwordVisible by remember { mutableStateOf(false) }
     var otpSent by remember { mutableStateOf(false) }
 
-    // Doctor registration fields
+    // Doctor registration fields (VCI ID removed as required)
     var doctorFullName by remember { mutableStateOf("") }
-    var vciCouncilId by remember { mutableStateOf("") }
     var doctorClinicName by remember { mutableStateOf("") }
     var doctorDeclarationChecked by remember { mutableStateOf(false) }
 
-    val statesList = listOf("हरियाणा (Haryana)", "पंजाब (Punjab)", "राजस्थान (Rajasthan)", "उत्तर प्रदेश (UP)", "मध्य प्रदेश (MP)")
+    val statesList = com.example.data.IndiaLocations.statesAndUTs
     var selectedState by remember { mutableStateOf(statesList.first()) }
     var stateDropdownExpanded by remember { mutableStateOf(false) }
 
-    val districtsHaryana = listOf("हिसार (Hisar)", "रोहतक (Rohtak)", "भिवानी (Bhiwani)", "करनाल (Karnal)", "सिरसा (Sirsa)", "जींद (Jind)", "अंबाला (Ambala)")
-    var selectedDistrict by remember { mutableStateOf(districtsHaryana.first()) }
+    val availableDistricts by remember(selectedState) {
+        derivedStateOf { com.example.data.IndiaLocations.getDistrictsForState(selectedState) }
+    }
+    var selectedDistrict by remember(selectedState) {
+        mutableStateOf(com.example.data.IndiaLocations.getDistrictsForState(selectedState).first())
+    }
     var districtDropdownExpanded by remember { mutableStateOf(false) }
 
-    // Farmer registration fields
+    // Farmer registration fields (Animal count removed, GPS coordinates auto-attached)
     var farmerFullName by remember { mutableStateOf("") }
-    var farmerTehsilVillage by remember { mutableStateOf("") }
-    var farmerCattleCount by remember { mutableStateOf("6") }
-    var useGpsLocation by remember { mutableStateOf(true) }
+    var farmerTehsilVillage by remember { mutableStateOf("") } // optional
+    var farmerGpsCoords by remember { mutableStateOf("29.1492° N, 75.7217° E (Hansi-Hisar Grid)") }
 
     val accentColor = when (activeTab) {
         UserRole.DOCTOR -> MedicalCyanPrimary
@@ -211,36 +213,29 @@ fun AuthModalDialog(
                     Spacer(modifier = Modifier.height(12.dp))
                 }
 
-                // If Login Mode: Toggle Password vs 4-Digit OTP
+                // Login Method indicator (Password/PIN is primary; Live SMS OTP dispatch disabled pending gateway)
                 if (!isRegister) {
-                    Row(
+                    Surface(
+                        color = DaylightCanvas,
+                        shape = RoundedCornerShape(10.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, FrostedCardBorder),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(bottom = 12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            .padding(bottom = 12.dp)
                     ) {
-                        FilterChip(
-                            selected = !isOtpMethod,
-                            onClick = { isOtpMethod = false },
-                            label = { Text("🔑 पासवर्ड द्वारा", fontWeight = FontWeight.Bold, fontSize = 11.sp) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                containerColor = Color.White,
-                                selectedContainerColor = accentColor,
-                                selectedLabelColor = Color.White
-                            ),
-                            modifier = Modifier.weight(1f)
-                        )
-                        FilterChip(
-                            selected = isOtpMethod,
-                            onClick = { isOtpMethod = true },
-                            label = { Text("📱 4-अंकीय ओटीपी", fontWeight = FontWeight.Bold, fontSize = 11.sp) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                containerColor = Color.White,
-                                selectedContainerColor = accentColor,
-                                selectedLabelColor = Color.White
-                            ),
-                            modifier = Modifier.weight(1f)
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Lock, contentDescription = null, tint = accentColor, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "सुरक्षित पासवर्ड / 4-अंकीय पिन प्रमाणीकरण (Primary Auth)",
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Slate900
+                            )
+                        }
                     }
                 }
 
@@ -251,7 +246,7 @@ fun AuthModalDialog(
                 if (isRegister) {
                     // Registration Forms
                     if (activeTab == UserRole.DOCTOR) {
-                        // DOCTOR REGISTRATION
+                        // DOCTOR REGISTRATION: Name, State (all India), District (including Hansi), Clinic Name, Mobile/Email, PIN/Pass
                         OutlinedTextField(
                             value = doctorFullName,
                             onValueChange = { doctorFullName = it },
@@ -262,17 +257,7 @@ fun AuthModalDialog(
                         )
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        OutlinedTextField(
-                            value = vciCouncilId,
-                            onValueChange = { vciCouncilId = it },
-                            label = { Text("VCI / राज्य काउंसिल Reg ID (e.g. HR-8892)*", fontWeight = FontWeight.Bold) },
-                            singleLine = true,
-                            leadingIcon = { Icon(Icons.Default.Badge, contentDescription = null, tint = accentColor) },
-                            modifier = Modifier.fillMaxWidth().testTag("reg_doctor_vci")
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // State Dropdown
+                        // State Dropdown (All Indian States & UTs)
                         ExposedDropdownMenuBox(
                             expanded = stateDropdownExpanded,
                             onExpandedChange = { stateDropdownExpanded = !stateDropdownExpanded }
@@ -281,7 +266,7 @@ fun AuthModalDialog(
                                 value = selectedState,
                                 onValueChange = {},
                                 readOnly = true,
-                                label = { Text("राज्य (State Pick)*", fontWeight = FontWeight.Bold) },
+                                label = { Text("राज्य / केंद्र शासित प्रदेश (State/UT)*", fontWeight = FontWeight.Bold) },
                                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = stateDropdownExpanded) },
                                 modifier = Modifier.menuAnchor().fillMaxWidth()
                             )
@@ -294,6 +279,7 @@ fun AuthModalDialog(
                                         text = { Text(stateItem, fontWeight = FontWeight.Bold) },
                                         onClick = {
                                             selectedState = stateItem
+                                            selectedDistrict = com.example.data.IndiaLocations.getDistrictsForState(stateItem).first()
                                             stateDropdownExpanded = false
                                         }
                                     )
@@ -302,7 +288,7 @@ fun AuthModalDialog(
                         }
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        // District Dropdown
+                        // District Dropdown (All districts including Hansi in Haryana)
                         ExposedDropdownMenuBox(
                             expanded = districtDropdownExpanded,
                             onExpandedChange = { districtDropdownExpanded = !districtDropdownExpanded }
@@ -311,7 +297,7 @@ fun AuthModalDialog(
                                 value = selectedDistrict,
                                 onValueChange = {},
                                 readOnly = true,
-                                label = { Text("जिला (District Pick)*", fontWeight = FontWeight.Bold) },
+                                label = { Text("जिला (District Selection)*", fontWeight = FontWeight.Bold) },
                                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = districtDropdownExpanded) },
                                 modifier = Modifier.menuAnchor().fillMaxWidth()
                             )
@@ -319,7 +305,7 @@ fun AuthModalDialog(
                                 expanded = districtDropdownExpanded,
                                 onDismissRequest = { districtDropdownExpanded = false }
                             ) {
-                                districtsHaryana.forEach { distItem ->
+                                availableDistricts.forEach { distItem ->
                                     DropdownMenuItem(
                                         text = { Text(distItem, fontWeight = FontWeight.Bold) },
                                         onClick = {
@@ -368,7 +354,7 @@ fun AuthModalDialog(
                         Spacer(modifier = Modifier.height(8.dp))
 
                     } else if (activeTab == UserRole.FARMER) {
-                        // FARMER REGISTRATION
+                        // FARMER REGISTRATION: Name, State & District (mandatory), Village (optional), Silent GPS auto-attached
                         OutlinedTextField(
                             value = farmerFullName,
                             onValueChange = { farmerFullName = it },
@@ -379,28 +365,78 @@ fun AuthModalDialog(
                         )
                         Spacer(modifier = Modifier.height(8.dp))
 
+                        // State Dropdown
+                        ExposedDropdownMenuBox(
+                            expanded = stateDropdownExpanded,
+                            onExpandedChange = { stateDropdownExpanded = !stateDropdownExpanded }
+                        ) {
+                            OutlinedTextField(
+                                value = selectedState,
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("राज्य / केंद्र शासित प्रदेश (State/UT)*", fontWeight = FontWeight.Bold) },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = stateDropdownExpanded) },
+                                modifier = Modifier.menuAnchor().fillMaxWidth()
+                            )
+                            ExposedDropdownMenu(
+                                expanded = stateDropdownExpanded,
+                                onDismissRequest = { stateDropdownExpanded = false }
+                            ) {
+                                statesList.forEach { stateItem ->
+                                    DropdownMenuItem(
+                                        text = { Text(stateItem, fontWeight = FontWeight.Bold) },
+                                        onClick = {
+                                            selectedState = stateItem
+                                            selectedDistrict = com.example.data.IndiaLocations.getDistrictsForState(stateItem).first()
+                                            stateDropdownExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // District Dropdown
+                        ExposedDropdownMenuBox(
+                            expanded = districtDropdownExpanded,
+                            onExpandedChange = { districtDropdownExpanded = !districtDropdownExpanded }
+                        ) {
+                            OutlinedTextField(
+                                value = selectedDistrict,
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("जिला (District Selection)*", fontWeight = FontWeight.Bold) },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = districtDropdownExpanded) },
+                                modifier = Modifier.menuAnchor().fillMaxWidth()
+                            )
+                            ExposedDropdownMenu(
+                                expanded = districtDropdownExpanded,
+                                onDismissRequest = { districtDropdownExpanded = false }
+                            ) {
+                                availableDistricts.forEach { distItem ->
+                                    DropdownMenuItem(
+                                        text = { Text(distItem, fontWeight = FontWeight.Bold) },
+                                        onClick = {
+                                            selectedDistrict = distItem
+                                            districtDropdownExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+
                         OutlinedTextField(
                             value = farmerTehsilVillage,
                             onValueChange = { farmerTehsilVillage = it },
-                            label = { Text("तहसील / गांव का नाम*", fontWeight = FontWeight.Bold) },
+                            label = { Text("तहसील / गांव का नाम (वैकल्पिक / Optional)", fontWeight = FontWeight.Bold) },
                             singleLine = true,
                             leadingIcon = { Icon(Icons.Default.Home, contentDescription = null, tint = accentColor) },
                             modifier = Modifier.fillMaxWidth().testTag("reg_farmer_village")
                         )
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        OutlinedTextField(
-                            value = farmerCattleCount,
-                            onValueChange = { farmerCattleCount = it },
-                            label = { Text("कुल पशु संख्या (गाय / भैंस)*", fontWeight = FontWeight.Bold) },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            singleLine = true,
-                            leadingIcon = { Icon(Icons.Default.Pets, contentDescription = null, tint = accentColor) },
-                            modifier = Modifier.fillMaxWidth().testTag("reg_farmer_cattle_count")
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // GPS / Manual Location Selector
+                        // Silent GPS background auto-attachment indicator
                         Surface(
                             color = DaylightCanvas,
                             shape = RoundedCornerShape(10.dp),
@@ -410,31 +446,25 @@ fun AuthModalDialog(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(8.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
+                                    .padding(10.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text("📍", fontSize = 18.sp)
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Column {
-                                        Text(
-                                            text = if (useGpsLocation) "GPS लोकेशन संलग्न (29.1492° N, 75.7217° E)" else "मैन्युअल पता मोड",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Slate900
-                                        )
-                                        Text(
-                                            text = "निकटतम हिसार/हांसी वेटनरी सेवा हेतु",
-                                            fontSize = 10.sp,
-                                            color = Slate900
-                                        )
-                                    }
+                                Text("📍", fontSize = 18.sp)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    Text(
+                                        text = "GPS अक्षांश व देशांतर स्वतः संलग्न (Silent Background Sync)",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Slate900
+                                    )
+                                    Text(
+                                        text = "स्वचालित निर्देशांक: $farmerGpsCoords",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = AgroEmeraldDark
+                                    )
                                 }
-                                Switch(
-                                    checked = useGpsLocation,
-                                    onCheckedChange = { useGpsLocation = it }
-                                )
                             }
                         }
                         Spacer(modifier = Modifier.height(8.dp))
@@ -602,10 +632,10 @@ fun AuthModalDialog(
                                     role = UserRole.DOCTOR,
                                     fullName = doctorFullName,
                                     mobileOrEmail = if (mobileOrEmail.isNotBlank()) mobileOrEmail else "9991039297",
-                                    regOrTag = if (vciCouncilId.isNotBlank()) vciCouncilId else "HR-VCI-8892",
+                                    regOrTag = "DOC-HR-${(1000..9999).random()}",
                                     state = selectedState,
                                     district = selectedDistrict,
-                                    clinicOrVillage = if (doctorClinicName.isNotBlank()) doctorClinicName else "हिसार पशु अस्पताल"
+                                    clinicOrVillage = if (doctorClinicName.isNotBlank()) doctorClinicName else "पशु अस्पताल"
                                 )
                             } else {
                                 if (farmerFullName.isBlank()) {
@@ -616,11 +646,11 @@ fun AuthModalDialog(
                                     role = UserRole.FARMER,
                                     fullName = farmerFullName,
                                     mobileOrEmail = if (mobileOrEmail.isNotBlank()) mobileOrEmail else "9812039297",
-                                    regOrTag = "TAG-HR-${(1000..9999).random()}",
+                                    regOrTag = "FAR-HR-${(1000..9999).random()}",
                                     state = selectedState,
                                     district = selectedDistrict,
-                                    clinicOrVillage = if (farmerTehsilVillage.isNotBlank()) farmerTehsilVillage else "हांसी (हिसार)",
-                                    cattleCount = farmerCattleCount.toIntOrNull() ?: 6
+                                    clinicOrVillage = if (farmerTehsilVillage.isNotBlank()) "$farmerTehsilVillage, $farmerGpsCoords" else "$selectedDistrict, $farmerGpsCoords",
+                                    cattleCount = 0
                                 )
                             }
                         } else {

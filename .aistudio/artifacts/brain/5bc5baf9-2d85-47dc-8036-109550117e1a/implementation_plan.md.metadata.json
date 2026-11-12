@@ -1,6 +1,0 @@
-{
-  "summary":  "Comprehensive architectural and UX upgrade plan for Vetcare AI OS:\n- Viewport & scrolling optimization, fixing dual-pane layout and removing guest barriers with instant role switching.\n- Doctor Console: 9 independent anatomical hotspot chips, single-choice temperature radio chips, species-calibrated Shaeffer dosage engine, interactive clinical photo & lab report multimodal AI analyzer, doctor-exclusive searchable pharmacopeia, and native A4 PDF generation with Print Document preview.\n- Farmer Hub: 45 NDDB/IVRI validated safe herbal remedies across anatomical filters, shared AI Sire/Breeding repository with lineage and CR% metrics.\n- Admin Vault: User profile search & inspection, one-click trial extension (+7d/+15d/+30d), and segmented Doctor vs. Farmer tier pricing management.",
-  "updatedAt":  "2026-11-10T04:09:23.729454204Z",
-  "requestFeedback":  true,
-  "userFacing":  true
-}

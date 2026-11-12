@@ -2,6 +2,7 @@ package com.example.ui.components
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import coil.compose.AsyncImage
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -38,10 +39,13 @@ fun VetCareTopBar(
 ) {
     val language by viewModel.selectedLanguage.collectAsState()
     val role by viewModel.currentRole.collectAsState()
+    val currentUser by viewModel.currentUser.collectAsState()
+    val adminSettings by viewModel.adminSettings.collectAsState()
     val sessionSec by viewModel.sessionSecondsRemaining.collectAsState()
     val trialSec by viewModel.trialSecondsRemaining.collectAsState()
     val isDesktopToggle by viewModel.isDesktopModeManualToggle.collectAsState()
     var langMenuExpanded by remember { mutableStateOf(false) }
+    var userMenuExpanded by remember { mutableStateOf(false) }
 
     val sessionMin = sessionSec / 60
     val sessionSecMod = sessionSec % 60
@@ -153,8 +157,18 @@ fun VetCareTopBar(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Center
                 ) {
+                    if (adminSettings.logoUrl.isNotBlank()) {
+                        AsyncImage(
+                            model = adminSettings.logoUrl,
+                            contentDescription = "Clinic Logo",
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clip(CircleShape)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                    }
                     Text(
-                        text = "🐾 VETCARE AI OS",
+                        text = adminSettings.clinicName.ifBlank { "🐾 VETCARE AI OS" },
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Black,
                         color = Slate900,
@@ -263,32 +277,102 @@ fun VetCareTopBar(
                     }
                 }
 
-                // User Badge / Login
-                Surface(
-                    onClick = { viewModel.openAuthModal(role) },
-                    shape = CircleShape,
-                    color = when (role) {
-                        UserRole.DOCTOR -> MedicalCyanPrimary
-                        UserRole.FARMER -> AgroEmeraldPrimary
-                        UserRole.ADMIN -> RoyalIndigoPrimary
-                    },
-                    modifier = Modifier.size(38.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            text = when (role) {
-                                UserRole.DOCTOR -> "🩺"
-                                UserRole.FARMER -> "🌾"
-                                UserRole.ADMIN -> "🛡️"
+                // User Badge / Login Action
+                Box {
+                    if (currentUser == null) {
+                        Surface(
+                            onClick = { viewModel.openAuthModal(role) },
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color.White,
+                            border = androidx.compose.foundation.BorderStroke(1.5.dp, MedicalCyanPrimary),
+                            modifier = Modifier.height(38.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 8.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.AccountCircle,
+                                    contentDescription = "Login",
+                                    tint = MedicalCyanPrimary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "लॉगिन",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = Slate900
+                                )
+                            }
+                        }
+                    } else {
+                        Surface(
+                            onClick = { userMenuExpanded = true },
+                            shape = CircleShape,
+                            color = when (role) {
+                                UserRole.DOCTOR -> MedicalCyanPrimary
+                                UserRole.FARMER -> AgroEmeraldPrimary
+                                UserRole.ADMIN -> RoyalIndigoPrimary
                             },
-                            fontSize = 18.sp
-                        )
+                            modifier = Modifier.size(38.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(
+                                    text = when (role) {
+                                        UserRole.DOCTOR -> "🩺"
+                                        UserRole.FARMER -> "🌾"
+                                        UserRole.ADMIN -> "🛡️"
+                                    },
+                                    fontSize = 18.sp
+                                )
+                            }
+                        }
+
+                        DropdownMenu(
+                            expanded = userMenuExpanded,
+                            onDismissRequest = { userMenuExpanded = false },
+                            modifier = Modifier.background(Color.White)
+                        ) {
+                            DropdownMenuItem(
+                                text = {
+                                    Column {
+                                        Text(
+                                            text = currentUser?.name ?: "अधिकृत यूजर",
+                                            fontWeight = FontWeight.Black,
+                                            fontSize = 13.sp,
+                                            color = Slate900
+                                        )
+                                        Text(
+                                            text = "${currentUser?.role?.title} • ${currentUser?.regOrTagNo}",
+                                            fontSize = 10.sp,
+                                            color = Slate600
+                                        )
+                                    }
+                                },
+                                onClick = {}
+                            )
+                            Divider()
+                            DropdownMenuItem(
+                                text = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.ExitToApp, contentDescription = null, tint = RedAlert, modifier = Modifier.size(18.dp))
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("लॉगआउट (Logout)", color = RedAlert, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                    }
+                                },
+                                onClick = {
+                                    userMenuExpanded = false
+                                    viewModel.logout()
+                                }
+                            )
+                        }
                     }
                 }
             }
         }
 
-        // Direct 1-Tap Role-Switching Navigation Tabs (Doctor, Farmer, Admin)
+        // Direct Role Navigation Tabs (Filtered dynamically based on logged-in role)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -296,11 +380,18 @@ fun VetCareTopBar(
                 .padding(horizontal = 8.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            val roles: List<Triple<UserRole, String, ScreenDestination>> = listOf(
+            val allRoleTabs: List<Triple<UserRole, String, ScreenDestination>> = listOf(
                 Triple(UserRole.DOCTOR, "🩺 डॉक्टर कंसोल", ScreenDestination.DOCTOR_DIAGNOSIS),
                 Triple(UserRole.FARMER, "🌾 किसान हब", ScreenDestination.FARMER_PASSBOOK),
                 Triple(UserRole.ADMIN, "🛡️ एडमिन वॉल्ट", ScreenDestination.ADMIN_FINANCIALS)
             )
+
+            val roles = when {
+                currentUser == null || currentUser?.role == UserRole.ADMIN || currentUser?.hasDualRoleAuthority == true -> allRoleTabs
+                currentUser?.role == UserRole.DOCTOR -> listOf(Triple(UserRole.DOCTOR, "🩺 अधिकृत डॉक्टर कंसोल (Locked)", ScreenDestination.DOCTOR_DIAGNOSIS))
+                currentUser?.role == UserRole.FARMER -> listOf(Triple(UserRole.FARMER, "🌾 जागरूक किसान हब (Locked)", ScreenDestination.FARMER_PASSBOOK))
+                else -> allRoleTabs
+            }
 
             roles.forEach { roleItem ->
                 val tabRole = roleItem.first
@@ -309,8 +400,12 @@ fun VetCareTopBar(
                 val isSelected = role == tabRole
                 Surface(
                     onClick = {
-                        viewModel.setRole(tabRole)
-                        viewModel.navigateTo(dest)
+                        if (currentUser == null) {
+                            viewModel.openAuthModal(tabRole)
+                        } else {
+                            viewModel.setRole(tabRole)
+                            viewModel.navigateTo(dest)
+                        }
                     },
                     shape = RoundedCornerShape(8.dp),
                     color = if (isSelected) {
@@ -318,7 +413,6 @@ fun VetCareTopBar(
                             UserRole.DOCTOR -> MedicalCyanPrimary
                             UserRole.FARMER -> AgroEmeraldPrimary
                             UserRole.ADMIN -> RoyalIndigoPrimary
-                            else -> Slate900
                         }
                     } else Color.White,
                     border = if (!isSelected) androidx.compose.foundation.BorderStroke(1.dp, FrostedCardBorder) else null,
@@ -567,6 +661,7 @@ fun IntraHaryanaAccordionDrawer(
 ) {
     val role by viewModel.currentRole.collectAsState()
     val currentUser by viewModel.currentUser.collectAsState()
+    val adminSettings by viewModel.adminSettings.collectAsState()
     var expandedCategory by remember { mutableStateOf("doctor") }
 
     Column(
@@ -580,25 +675,37 @@ fun IntraHaryanaAccordionDrawer(
             .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
-        // Drawer Header with prominent Teal [✕] Close Button
+        // Drawer Header with prominent Teal [✕] Close Button & Custom Logo
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
-                Text(
-                    text = "🐾 VETCARE AI OS",
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Black,
-                    color = Slate900
-                )
-                Text(
-                    text = "Intra-Haryana Health Grid",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TealDark
-                )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (adminSettings.logoUrl.isNotBlank()) {
+                    AsyncImage(
+                        model = adminSettings.logoUrl,
+                        contentDescription = "Clinic Logo",
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+                Column {
+                    Text(
+                        text = adminSettings.clinicName.ifBlank { "🐾 VETCARE AI OS" },
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Black,
+                        color = Slate900
+                    )
+                    Text(
+                        text = "Intra-Haryana Health Grid",
+                        fontSize = 10.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TealDark
+                    )
+                }
             }
 
             IconButton(
@@ -618,66 +725,116 @@ fun IntraHaryanaAccordionDrawer(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Authenticated Profile Header Card with Logout Button
-        Surface(
-            color = DaylightSurface,
-            shape = RoundedCornerShape(14.dp),
-            border = androidx.compose.foundation.BorderStroke(1.5.dp, TealAccent),
-            modifier = Modifier
-                .fillMaxWidth()
-                .shadow(2.dp, RoundedCornerShape(14.dp))
-        ) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Surface(
-                        color = when (role) {
-                            UserRole.DOCTOR -> MedicalCyanLight
-                            UserRole.FARMER -> AgroEmeraldLight
-                            UserRole.ADMIN -> RoyalIndigoLight
-                        },
-                        shape = RoundedCornerShape(6.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, when (role) {
-                            UserRole.DOCTOR -> MedicalCyanPrimary
-                            UserRole.FARMER -> AgroEmeraldPrimary
-                            UserRole.ADMIN -> RoyalIndigoPrimary
-                        })
+        // Authenticated Profile Header Card or Login Trigger
+        if (currentUser != null) {
+            Surface(
+                color = DaylightSurface,
+                shape = RoundedCornerShape(14.dp),
+                border = androidx.compose.foundation.BorderStroke(1.5.dp, TealAccent),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .shadow(2.dp, RoundedCornerShape(14.dp))
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            color = when (currentUser!!.role) {
+                                UserRole.DOCTOR -> MedicalCyanLight
+                                UserRole.FARMER -> AgroEmeraldLight
+                                UserRole.ADMIN -> RoyalIndigoLight
+                            },
+                            shape = RoundedCornerShape(6.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, when (currentUser!!.role) {
+                                UserRole.DOCTOR -> MedicalCyanPrimary
+                                UserRole.FARMER -> AgroEmeraldPrimary
+                                UserRole.ADMIN -> RoyalIndigoPrimary
+                            })
+                        ) {
+                            Text(
+                                text = currentUser!!.role.title,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Slate900,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+
+                        TextButton(
+                            onClick = {
+                                viewModel.logout()
+                                onClose()
+                            },
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
+                        ) {
+                            Text("लॉगआउट", color = RedAlert, fontSize = 11.sp, fontWeight = FontWeight.Black)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = currentUser!!.name,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Black,
+                        color = Slate900
+                    )
+                    Text(
+                        text = currentUser!!.clinicOrVillage,
+                        fontSize = 11.sp,
+                        color = Slate900
+                    )
+                }
+            }
+        } else {
+            Surface(
+                color = DaylightSurface,
+                shape = RoundedCornerShape(14.dp),
+                border = androidx.compose.foundation.BorderStroke(1.5.dp, FrostedCardBorder),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .shadow(2.dp, RoundedCornerShape(14.dp))
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = role.title,
+                            text = "🔒 कोई सक्रिय सत्र नहीं",
                             fontSize = 11.sp,
-                            fontWeight = FontWeight.Black,
-                            color = Slate900,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            fontWeight = FontWeight.Bold,
+                            color = Slate500
                         )
+                        Button(
+                            onClick = {
+                                onClose()
+                                viewModel.openAuthModal(role)
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = TealDark),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                            modifier = Modifier.height(30.dp)
+                        ) {
+                            Text("लॉगिन करें", fontSize = 11.sp, fontWeight = FontWeight.Black, color = Color.White)
+                        }
                     }
-
-                    TextButton(
-                        onClick = {
-                            viewModel.logout()
-                            onClose()
-                        },
-                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
-                    ) {
-                        Text("लॉगआउट", color = RedAlert, fontSize = 11.sp, fontWeight = FontWeight.Black)
-                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "अतिथि मोड समाप्त • प्रमाणीकरण अनिवार्य",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Black,
+                        color = Slate900
+                    )
+                    Text(
+                        text = "कृपया डॉक्टर, किसान या एडमिन रूप में लॉगिन करें",
+                        fontSize = 10.5.sp,
+                        color = Slate600
+                    )
                 }
-
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = currentUser?.name ?: "अधिकृत उपयोगकर्ता",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Black,
-                    color = Slate900
-                )
-                Text(
-                    text = currentUser?.clinicOrVillage ?: "हिसार पशु सुपर-स्पेशलिटी अस्पताल",
-                    fontSize = 11.sp,
-                    color = Slate900
-                )
             }
         }
 
@@ -687,126 +844,189 @@ fun IntraHaryanaAccordionDrawer(
             modifier = Modifier.padding(vertical = 12.dp)
         )
 
-        // Accordion 1: Doctor Console
-        AccordionGroup(
-            title = "🩺 अधिकृत पशु चिकित्सक (Doctor)",
-            isExpanded = expandedCategory == "doctor",
-            onToggle = { expandedCategory = if (expandedCategory == "doctor") "" else "doctor" }
-        ) {
-            DrawerSubItem("1. डिजिटल ओपीडी पर्ची", Icons.Default.Description) {
-                viewModel.navigateTo(ScreenDestination.DOCTOR_DIAGNOSIS)
-                onClose()
-            }
-            DrawerSubItem("2. 3-वे एआई रोग निदान", Icons.Default.Biotech) {
-                viewModel.navigateTo(ScreenDestination.DOCTOR_DIAGNOSIS)
-                onClose()
-            }
-            DrawerSubItem("3. वेटनरी औषधि व स्टॉक", Icons.Default.LocalPharmacy) {
-                viewModel.navigateTo(ScreenDestination.DRUGS_DIRECTORY)
-                onClose()
-            }
-            DrawerSubItem("4. शेफर्स खुराक कैलकुलेटर", Icons.Default.Calculate) {
-                viewModel.navigateTo(ScreenDestination.DOSAGE_SAFETY)
-                onClose()
-            }
-            DrawerSubItem("5. प्रजनन व सीमन कैटलॉग", Icons.Default.Pets) {
-                viewModel.navigateTo(ScreenDestination.BREEDING_CATALOG)
-                onClose()
-            }
-        }
+        val showDoctorTools = currentUser == null || currentUser?.role == UserRole.DOCTOR || currentUser?.role == UserRole.ADMIN || currentUser?.hasDualRoleAuthority == true
+        val showFarmerTools = currentUser == null || currentUser?.role == UserRole.FARMER || currentUser?.role == UserRole.ADMIN || currentUser?.hasDualRoleAuthority == true
+        val showAdminTools = currentUser == null || currentUser?.role == UserRole.ADMIN
 
-        Spacer(modifier = Modifier.height(10.dp))
+        // Accordion 1: Doctor Console
+        if (showDoctorTools) {
+            AccordionGroup(
+                title = "🩺 अधिकृत पशु चिकित्सक (Doctor)",
+                isExpanded = expandedCategory == "doctor",
+                onToggle = { expandedCategory = if (expandedCategory == "doctor") "" else "doctor" }
+            ) {
+                DrawerSubItem("1. डिजिटल ओपीडी पर्ची", Icons.Default.Description) {
+                    viewModel.navigateTo(ScreenDestination.DOCTOR_DIAGNOSIS)
+                    onClose()
+                }
+                DrawerSubItem("2. 3-वे एआई रोग निदान", Icons.Default.Biotech) {
+                    viewModel.navigateTo(ScreenDestination.DOCTOR_DIAGNOSIS)
+                    onClose()
+                }
+                DrawerSubItem("3. वेटनरी औषधि व स्टॉक", Icons.Default.LocalPharmacy) {
+                    viewModel.navigateTo(ScreenDestination.DRUGS_DIRECTORY)
+                    onClose()
+                }
+                DrawerSubItem("4. शेफर्स खुराक कैलकुलेटर", Icons.Default.Calculate) {
+                    viewModel.navigateTo(ScreenDestination.DOSAGE_SAFETY)
+                    onClose()
+                }
+                DrawerSubItem("5. प्रजनन व सीमन कैटलॉग", Icons.Default.Pets) {
+                    viewModel.navigateTo(ScreenDestination.BREEDING_CATALOG)
+                    onClose()
+                }
+                DrawerSubItem("6. 💰 फाइनेंस और हिसाब (OPD Ledger)", Icons.Default.AccountBalanceWallet) {
+                    viewModel.navigateTo(ScreenDestination.DOCTOR_FINANCE)
+                    onClose()
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+        }
 
         // Accordion 2: Farmer Hub
-        AccordionGroup(
-            title = "🌾 जागरूक पशुपालक हब (Farmer)",
-            isExpanded = expandedCategory == "farmer",
-            onToggle = { expandedCategory = if (expandedCategory == "farmer") "" else "farmer" }
-        ) {
-            DrawerSubItem("1. डिजिटल पशु आधार पासबुक", Icons.Default.Badge) {
-                viewModel.navigateTo(ScreenDestination.FARMER_PASSBOOK)
-                onClose()
+        if (showFarmerTools) {
+            AccordionGroup(
+                title = "🌾 जागरूक पशुपालक हब (Farmer)",
+                isExpanded = expandedCategory == "farmer",
+                onToggle = { expandedCategory = if (expandedCategory == "farmer") "" else "farmer" }
+            ) {
+                DrawerSubItem("1. डिजिटल पशु आधार पासबुक", Icons.Default.Badge) {
+                    viewModel.navigateTo(ScreenDestination.FARMER_PASSBOOK)
+                    onClose()
+                }
+                DrawerSubItem("2. दूध व फैट-एसएनएफ खाता", Icons.Default.Assessment) {
+                    viewModel.navigateTo(ScreenDestination.FARMER_MILK_CALC)
+                    onClose()
+                }
+                DrawerSubItem("3. 100% सुरक्षित देसी नुस्खे", Icons.Default.Eco) {
+                    viewModel.navigateTo(ScreenDestination.FARMER_DESI_NUSKHE)
+                    onClose()
+                }
+                DrawerSubItem("4. 280-दिन डिलीवरी कैलेंडर", Icons.Default.CalendarMonth) {
+                    viewModel.navigateTo(ScreenDestination.BREEDING_CATALOG)
+                    onClose()
+                }
+                DrawerSubItem("5. निकटतम डॉक्टर को इमरजेंसी SOS", Icons.Default.Phone) {
+                    viewModel.navigateTo(ScreenDestination.EMERGENCY_SOS)
+                    onClose()
+                }
+                DrawerSubItem("6. प्रजनन व सीमन कैटलॉग", Icons.Default.Pets) {
+                    viewModel.navigateTo(ScreenDestination.BREEDING_CATALOG)
+                    onClose()
+                }
             }
-            DrawerSubItem("2. दूध व फैट-एसएनएफ खाता", Icons.Default.Assessment) {
-                viewModel.navigateTo(ScreenDestination.FARMER_MILK_CALC)
-                onClose()
-            }
-            DrawerSubItem("3. 100% सुरक्षित देसी नुस्खे", Icons.Default.Eco) {
-                viewModel.navigateTo(ScreenDestination.FARMER_DESI_NUSKHE)
-                onClose()
-            }
-            DrawerSubItem("4. 280-दिन डिलीवरी कैलेंडर", Icons.Default.CalendarMonth) {
-                viewModel.navigateTo(ScreenDestination.BREEDING_CATALOG)
-                onClose()
-            }
-            DrawerSubItem("5. निकटतम डॉक्टर को इमरजेंसी SOS", Icons.Default.Phone) {
-                viewModel.navigateTo(ScreenDestination.EMERGENCY_SOS)
-                onClose()
-            }
+
+            Spacer(modifier = Modifier.height(10.dp))
         }
 
-        Spacer(modifier = Modifier.height(10.dp))
-
         // Accordion 3: Master Admin Vault
-        AccordionGroup(
-            title = "🛡️ अधिकृत एडमिन वॉल्ट (Admin)",
-            isExpanded = expandedCategory == "admin",
-            onToggle = { expandedCategory = if (expandedCategory == "admin") "" else "admin" }
-        ) {
-            DrawerSubItem("1. वित्तीय व रेवेन्यू एनालिटिक्स", Icons.Default.AccountBalanceWallet) {
-                viewModel.navigateTo(ScreenDestination.ADMIN_FINANCIALS)
-                onClose()
-            }
-            DrawerSubItem("2. बैंक व पेआउट सेटिंग्स", Icons.Default.CreditCard) {
-                viewModel.navigateTo(ScreenDestination.ADMIN_PAYOUT)
-                onClose()
-            }
-            DrawerSubItem("3. यूज़र व वीसीआई अप्रूवल", Icons.Default.VerifiedUser) {
-                viewModel.navigateTo(ScreenDestination.ADMIN_USERS)
-                onClose()
-            }
-            DrawerSubItem("4. नो-कोड लुक कस्टमाइज़र", Icons.Default.Palette) {
-                viewModel.navigateTo(ScreenDestination.ADMIN_CUSTOMIZER)
-                onClose()
+        if (showAdminTools) {
+            AccordionGroup(
+                title = "🛡️ अधिकृत एडमिन वॉल्ट (Admin)",
+                isExpanded = expandedCategory == "admin",
+                onToggle = { expandedCategory = if (expandedCategory == "admin") "" else "admin" }
+            ) {
+                DrawerSubItem("1. वित्तीय व रेवेन्यू एनालिटिक्स", Icons.Default.AccountBalanceWallet) {
+                    viewModel.navigateTo(ScreenDestination.ADMIN_FINANCIALS)
+                    onClose()
+                }
+                DrawerSubItem("2. बैंक व पेआउट सेटिंग्स", Icons.Default.CreditCard) {
+                    viewModel.navigateTo(ScreenDestination.ADMIN_PAYOUT)
+                    onClose()
+                }
+                DrawerSubItem("3. यूज़र व वीसीआई अप्रूवल", Icons.Default.VerifiedUser) {
+                    viewModel.navigateTo(ScreenDestination.ADMIN_USERS)
+                    onClose()
+                }
+                DrawerSubItem("4. नो-कोड लुक कस्टमाइज़र", Icons.Default.Palette) {
+                    viewModel.navigateTo(ScreenDestination.ADMIN_CUSTOMIZER)
+                    onClose()
+                }
             }
         }
 
         Spacer(modifier = Modifier.weight(1f))
 
-        // Quick Role Switch Bar at Bottom of Drawer
-        Surface(
-            color = Color.White,
-            shape = RoundedCornerShape(14.dp),
-            border = androidx.compose.foundation.BorderStroke(1.5.dp, FrostedCardBorder),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(modifier = Modifier.padding(10.dp)) {
-                Text(
-                    text = "भूमिका बदलें (Switch Role):",
-                    fontSize = 11.sp,
-                    color = Slate900,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    RoleSmallButton("🩺 डॉ.", role == UserRole.DOCTOR, MedicalCyanPrimary) {
-                        viewModel.setRole(UserRole.DOCTOR)
-                        viewModel.navigateTo(ScreenDestination.DOCTOR_DIAGNOSIS)
-                        onClose()
+        // Role Status or Role Switch Bar
+        if (currentUser == null || currentUser?.role == UserRole.ADMIN || currentUser?.hasDualRoleAuthority == true) {
+            Surface(
+                color = Color.White,
+                shape = RoundedCornerShape(14.dp),
+                border = androidx.compose.foundation.BorderStroke(1.5.dp, FrostedCardBorder),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(10.dp)) {
+                    Text(
+                        text = if (currentUser?.hasDualRoleAuthority == true) "दोहरी भूमिका अधिकृत (Dual-Role Active):" else "भूमिका बदलें (Switch Role):",
+                        fontSize = 11.sp,
+                        color = Slate900,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        RoleSmallButton("🩺 डॉ.", role == UserRole.DOCTOR, MedicalCyanPrimary) {
+                            if (currentUser == null) {
+                                onClose()
+                                viewModel.openAuthModal(UserRole.DOCTOR)
+                            } else {
+                                viewModel.setRole(UserRole.DOCTOR)
+                                viewModel.navigateTo(ScreenDestination.DOCTOR_DIAGNOSIS)
+                                onClose()
+                            }
+                        }
+                        RoleSmallButton("🌾 किसान", role == UserRole.FARMER, AgroEmeraldPrimary) {
+                            if (currentUser == null) {
+                                onClose()
+                                viewModel.openAuthModal(UserRole.FARMER)
+                            } else {
+                                viewModel.setRole(UserRole.FARMER)
+                                viewModel.navigateTo(ScreenDestination.FARMER_PASSBOOK)
+                                onClose()
+                            }
+                        }
+                        RoleSmallButton("🛡️ एडमिन", role == UserRole.ADMIN, RoyalIndigoPrimary) {
+                            if (currentUser == null) {
+                                onClose()
+                                viewModel.openAuthModal(UserRole.ADMIN)
+                            } else {
+                                viewModel.setRole(UserRole.ADMIN)
+                                viewModel.navigateTo(ScreenDestination.ADMIN_FINANCIALS)
+                                onClose()
+                            }
+                        }
                     }
-                    RoleSmallButton("🌾 किसान", role == UserRole.FARMER, AgroEmeraldPrimary) {
-                        viewModel.setRole(UserRole.FARMER)
-                        viewModel.navigateTo(ScreenDestination.FARMER_PASSBOOK)
-                        onClose()
+                }
+            }
+        } else {
+            // Strict Single-Role Lock Display
+            Surface(
+                color = Color.White,
+                shape = RoundedCornerShape(14.dp),
+                border = androidx.compose.foundation.BorderStroke(1.5.dp, FrostedCardBorder),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(text = "🔒", fontSize = 12.sp)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "स्थायी भूमिका लॉक (Single-Role Lock)",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Black,
+                            color = Slate900
+                        )
                     }
-                    RoleSmallButton("🛡️ एडमिन", role == UserRole.ADMIN, RoyalIndigoPrimary) {
-                        viewModel.setRole(UserRole.ADMIN)
-                        viewModel.navigateTo(ScreenDestination.ADMIN_FINANCIALS)
-                        onClose()
-                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "आपकी आईडी ${currentUser?.role?.title} पर स्थायी लॉक है। दोहरी भूमिका अधिकार केवल सुपर एडमिन प्रदान कर सकता है।",
+                        fontSize = 10.sp,
+                        color = Slate600,
+                        lineHeight = 14.sp
+                    )
                 }
             }
         }

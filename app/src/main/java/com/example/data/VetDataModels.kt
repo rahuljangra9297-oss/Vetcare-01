@@ -21,6 +21,7 @@ enum class ScreenDestination {
     DRUGS_DIRECTORY,
     DOSAGE_SAFETY,
     BREEDING_CATALOG,
+    DOCTOR_FINANCE,
     FARMER_PASSBOOK,
     FARMER_MILK_CALC,
     FARMER_DESI_NUSKHE,
@@ -177,7 +178,8 @@ data class DiseaseDefinition(
     val recoveryMinDays: Int,
     val recoveryMaxDays: Int,
     val redFlagWarnings: List<String>,
-    val secondOpinionNote: String
+    val secondOpinionNote: String,
+    val lifestyleHusbandryTips: List<String> = emptyList()
 )
 
 data class DiagnosticResult(
@@ -291,7 +293,8 @@ data class UserProfile(
     val isSubscribed: Boolean = true,
     var trialDaysRemaining: Int = 24,
     val subscriptionTier: String = "Pro Diagnostic Plan",
-    val subscriptionExpiry: String = "2026-12-31"
+    val subscriptionExpiry: String = "2026-12-31",
+    val hasDualRoleAuthority: Boolean = false
 )
 
 // Real-Time Veterinary Pharmacopeia Item (Doctor-Exclusive)
@@ -407,13 +410,46 @@ data class DrugSubstituteDetail(
     }
 }
 
+enum class RepeatDurationCategory(val labelHindi: String, val labelEnglish: String) {
+    SHORT_TERM("अल्पकालिक उपचार (1–2 दिन)", "Short-Term (1–2 Days)"),
+    LONG_TERM("दीर्घकालिक उपचार (>2 दिन)", "Long-Term (>2 Days)")
+}
+
 data class RepeatBreederCause(
     val id: String,
     val title: String,
     val scientificTitle: String,
     val description: String,
     val fieldProtocol: String,
-    val recommendedMedicines: List<String>
+    val recommendedMedicines: List<String>,
+    val durationCategory: RepeatDurationCategory = RepeatDurationCategory.SHORT_TERM
+)
+
+enum class PaymentStatus(val labelHindi: String, val labelEnglish: String) {
+    PAID_FULL("पूरा भुगतान (Paid)", "Paid in Full"),
+    PARTIAL("आधा भुगतान / उधारी (Partial)", "Partial / Udhaar"),
+    UNPAID("बकाया (Unpaid / Credit)", "Unpaid / Credit")
+}
+
+enum class PaymentMode(val labelHindi: String, val labelEnglish: String) {
+    CASH("नकद (Cash)", "Cash"),
+    UPI("ऑनलाइन / UPI", "Online / UPI"),
+    BANK("बैंक खाता (Bank Transfer)", "Bank Transfer")
+}
+
+data class DoctorBillingRecord(
+    val id: String,
+    val billNumber: String,
+    val patientTag: String,
+    val ownerName: String,
+    val ownerPhone: String,
+    val totalAmount: Double,
+    val paidAmount: Double,
+    val balanceDue: Double,
+    val paymentStatus: PaymentStatus,
+    val paymentMode: PaymentMode,
+    val timestamp: Long = System.currentTimeMillis(),
+    val notes: String = ""
 )
 
 data class FarmerDiseaseItem(

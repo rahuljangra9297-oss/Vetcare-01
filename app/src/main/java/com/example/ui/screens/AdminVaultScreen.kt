@@ -1,5 +1,10 @@
 package com.example.ui.screens
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.PickVisualMediaRequest
+import coil.compose.AsyncImage
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -48,7 +53,28 @@ fun AdminVaultScreen(
 
     var clinicName by remember(settings) { mutableStateOf(settings.clinicName) }
     var clinicSubtitle by remember(settings) { mutableStateOf(settings.clinicSubtitle) }
+    var currentLogoUrl by remember(settings) { mutableStateOf(settings.logoUrl) }
     var selectedPreset by remember(settings) { mutableStateOf(settings.presetPalette) }
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            currentLogoUrl = uri.toString()
+            viewModel.updateAdminSettings(
+                clinicName = clinicName,
+                clinicSubtitle = clinicSubtitle,
+                logoUrl = uri.toString(),
+                palette = selectedPreset,
+                accountHolder = settings.accountHolder,
+                bankName = settings.bankName,
+                accountNumber = settings.accountNumber,
+                ifscCode = settings.ifscCode,
+                upiId = settings.upiId
+            )
+            viewModel.showToast("📷 नया लोगो सफलतापूर्वक अपडेट व लागू किया गया!")
+        }
+    }
 
     // PIN Protection Dialog State
     var showPinDialog by remember { mutableStateOf(false) }
@@ -519,7 +545,9 @@ fun AdminVaultScreen(
                     UserManagementRow(
                         user = user,
                         onToggleApproval = { viewModel.toggleVciApproval(user.id) },
-                        onExtendDays = { days -> viewModel.extendUserTrial(user.id, days) }
+                        onExtendDays = { days -> viewModel.extendUserTrial(user.id, days) },
+                        onToggleDualRole = { viewModel.toggleDualRoleAuthority(user.id) },
+                        onDeleteAccount = { viewModel.deleteUserAccount(user.id) }
                     )
                 }
             }
@@ -546,6 +574,100 @@ fun AdminVaultScreen(
                                 fontWeight = FontWeight.Bold,
                                 color = Slate900
                             )
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            Text(
+                                text = "🖼️ क्लिनिक लोगो व मुहर (Logo Uploader):",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Slate900
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Surface(
+                                color = DaylightCanvas,
+                                shape = RoundedCornerShape(14.dp),
+                                border = BorderStroke(1.5.dp, FrostedCardBorder),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(54.dp)
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .background(Color.White)
+                                                .border(2.dp, RoyalIndigoPrimary, RoundedCornerShape(12.dp)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            if (currentLogoUrl.isNotBlank()) {
+                                                AsyncImage(
+                                                    model = currentLogoUrl,
+                                                    contentDescription = "Uploaded Logo",
+                                                    modifier = Modifier
+                                                        .fillMaxSize()
+                                                        .clip(RoundedCornerShape(12.dp))
+                                                )
+                                            } else {
+                                                Text("🐾", fontSize = 28.sp)
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Column {
+                                            Text(
+                                                text = if (currentLogoUrl.isNotBlank()) "कस्टम लोगो सक्रिय" else "डिफ़ॉल्ट लोगो (🐾)",
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Black,
+                                                color = Slate900
+                                            )
+                                            Text(
+                                                text = "शीर्ष बार, ड्रॉर व पर्ची पर दिखेगा",
+                                                fontSize = 10.5.sp,
+                                                color = Slate600
+                                            )
+                                        }
+                                    }
+
+                                    Column(horizontalAlignment = Alignment.End) {
+                                        Button(
+                                            onClick = {
+                                                photoPickerLauncher.launch(
+                                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                                )
+                                            },
+                                            shape = RoundedCornerShape(8.dp),
+                                            colors = ButtonDefaults.buttonColors(containerColor = RoyalIndigoPrimary),
+                                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                                        ) {
+                                            Icon(Icons.Default.Upload, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text("फोटो चुनें", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                        }
+
+                                        if (currentLogoUrl.isNotBlank()) {
+                                            TextButton(
+                                                onClick = {
+                                                    currentLogoUrl = ""
+                                                    viewModel.showToast("डिफ़ॉल्ट लोगो बहाल किया गया")
+                                                },
+                                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                                            ) {
+                                                Text("रीसेट", color = RedAlert, fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
 
                             Spacer(modifier = Modifier.height(14.dp))
 
@@ -597,7 +719,7 @@ fun AdminVaultScreen(
                             Button(
                                 onClick = {
                                     viewModel.updateAdminSettings(
-                                        clinicName, clinicSubtitle, settings.logoUrl, selectedPreset,
+                                        clinicName, clinicSubtitle, currentLogoUrl, selectedPreset,
                                         settings.accountHolder, settings.bankName, settings.accountNumber, settings.ifscCode, settings.upiId
                                     )
                                 },
@@ -845,7 +967,9 @@ fun AdminVaultScreen(
 fun UserManagementRow(
     user: UserProfile,
     onToggleApproval: () -> Unit,
-    onExtendDays: (Int) -> Unit
+    onExtendDays: (Int) -> Unit,
+    onToggleDualRole: () -> Unit = {},
+    onDeleteAccount: () -> Unit = {}
 ) {
     Card(
         shape = RoundedCornerShape(14.dp),
@@ -859,10 +983,11 @@ fun UserManagementRow(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(text = user.name, fontSize = 13.5.sp, fontWeight = FontWeight.Black, color = Slate900)
                     Text(text = "भूमिका: ${user.role.title} • आईडी: ${user.regOrTagNo}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Slate900)
-                    Text(text = "प्लान: ${user.subscriptionTier} (शेष ट्रायल: ${user.trialDaysRemaining} दिन)", fontSize = 10.5.sp, color = RoyalIndigoDark, fontWeight = FontWeight.Bold)
+                    Text(text = "मोबाइल/ईमेल: ${user.mobile} • ${user.clinicOrVillage}", fontSize = 10.sp, color = Slate600)
+                    Text(text = "प्लान: ${user.subscriptionTier} (शेष: ${user.trialDaysRemaining} दिन)", fontSize = 10.5.sp, color = RoyalIndigoDark, fontWeight = FontWeight.Bold)
                 }
 
                 Surface(
@@ -871,7 +996,7 @@ fun UserManagementRow(
                     border = BorderStroke(1.dp, if (user.isVciApproved) GreenSuccess else AmberWarning)
                 ) {
                     Text(
-                        text = if (user.isVciApproved) "स्वीकृत (Approved)" else "लंबित (Pending)",
+                        text = if (user.isVciApproved) "सत्यापित" else "लंबित",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Black,
                         color = if (user.isVciApproved) GreenSuccess else AmberWarning,
@@ -882,7 +1007,38 @@ fun UserManagementRow(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Action row 1: Approval toggle
+            // Action row 1: Dual-Role Authority Switch Toggle
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFFF8FAFC), RoundedCornerShape(8.dp))
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "दोहरी भूमिका स्विच अधिकार (Dual-Role):",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Slate900
+                    )
+                    Text(
+                        text = if (user.hasDualRoleAuthority) "सक्रिय (डॉक्टर व किसान दोनों अनुमत)" else "अवरुद्ध (केवल एक भूमिका पर लॉक)",
+                        fontSize = 9.5.sp,
+                        color = if (user.hasDualRoleAuthority) GreenSuccessDark else Slate600
+                    )
+                }
+                Switch(
+                    checked = user.hasDualRoleAuthority,
+                    onCheckedChange = { onToggleDualRole() },
+                    colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = RoyalIndigoPrimary)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // Action row 2: Approval toggle
             OutlinedButton(
                 onClick = onToggleApproval,
                 shape = RoundedCornerShape(8.dp),
@@ -899,43 +1055,59 @@ fun UserManagementRow(
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            // Action row 2: One-click Trial Extensions (+7d, +15d, +30d)
+            // Action row 3: One-click Trial Extensions (+7d, +15d, +30d)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("ट्रायल बढ़ाएं:", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Slate900)
+                Text("ट्रायल:", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Slate900)
 
                 Button(
                     onClick = { onExtendDays(7) },
                     colors = ButtonDefaults.buttonColors(containerColor = RoyalIndigoPrimary),
                     shape = RoundedCornerShape(6.dp),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                    modifier = Modifier.weight(1f).height(32.dp)
+                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
+                    modifier = Modifier.weight(1f).height(30.dp)
                 ) {
-                    Text("+7 दिन", fontSize = 10.sp, fontWeight = FontWeight.Black, color = Color.White)
+                    Text("+7 दिन", fontSize = 9.5.sp, fontWeight = FontWeight.Black, color = Color.White)
                 }
 
                 Button(
                     onClick = { onExtendDays(15) },
                     colors = ButtonDefaults.buttonColors(containerColor = RoyalIndigoPrimary),
                     shape = RoundedCornerShape(6.dp),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                    modifier = Modifier.weight(1f).height(32.dp)
+                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
+                    modifier = Modifier.weight(1f).height(30.dp)
                 ) {
-                    Text("+15 दिन", fontSize = 10.sp, fontWeight = FontWeight.Black, color = Color.White)
+                    Text("+15 दिन", fontSize = 9.5.sp, fontWeight = FontWeight.Black, color = Color.White)
                 }
 
                 Button(
                     onClick = { onExtendDays(30) },
                     colors = ButtonDefaults.buttonColors(containerColor = AgroEmeraldPrimary),
                     shape = RoundedCornerShape(6.dp),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                    modifier = Modifier.weight(1f).height(32.dp)
+                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
+                    modifier = Modifier.weight(1f).height(30.dp)
                 ) {
-                    Text("+30 दिन", fontSize = 10.sp, fontWeight = FontWeight.Black, color = Color.White)
+                    Text("+30 दिन", fontSize = 9.5.sp, fontWeight = FontWeight.Black, color = Color.White)
                 }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // Action row 4: Delete Account
+            OutlinedButton(
+                onClick = onDeleteAccount,
+                shape = RoundedCornerShape(8.dp),
+                border = BorderStroke(1.dp, RedAlert),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = RedAlert),
+                modifier = Modifier.fillMaxWidth().height(32.dp),
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+            ) {
+                Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(15.dp), tint = RedAlert)
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("खाता हटाएं (Delete User Account)", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = RedAlert)
             }
         }
     }

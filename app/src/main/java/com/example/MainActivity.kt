@@ -92,6 +92,9 @@ fun VetCareApp(viewModel: VetCareViewModel) {
                     ScreenDestination.DOCTOR_OPD_QUEUE -> {
                         DoctorWorkspaceScreen(viewModel = viewModel)
                     }
+                    ScreenDestination.DOCTOR_FINANCE -> {
+                        DoctorFinanceDashboardScreen(viewModel = viewModel)
+                    }
                     ScreenDestination.DRUGS_DIRECTORY,
                     ScreenDestination.DOSAGE_SAFETY -> {
                         DrugsDirectoryScreen(viewModel = viewModel)

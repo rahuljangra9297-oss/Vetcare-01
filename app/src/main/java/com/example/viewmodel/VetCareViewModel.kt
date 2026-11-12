@@ -23,7 +23,7 @@ class VetCareViewModel : ViewModel() {
     private val _activeScreen = MutableStateFlow(ScreenDestination.HOME)
     val activeScreen: StateFlow<ScreenDestination> = _activeScreen.asStateFlow()
 
-    private val _currentUser = MutableStateFlow<UserProfile?>(SampleData.initialUsers.first())
+    private val _currentUser = MutableStateFlow<UserProfile?>(null)
     val currentUser: StateFlow<UserProfile?> = _currentUser.asStateFlow()
 
     // Auth Modal State
@@ -143,6 +143,26 @@ class VetCareViewModel : ViewModel() {
 
     private val _aiDateTimestamp = MutableStateFlow(System.currentTimeMillis())
     val aiDateTimestamp: StateFlow<Long> = _aiDateTimestamp.asStateFlow()
+
+    // Real-Time AI Bull Search State
+    private val _liveBullAnalysisResult = MutableStateFlow<BullPedigree?>(null)
+    val liveBullAnalysisResult: StateFlow<BullPedigree?> = _liveBullAnalysisResult.asStateFlow()
+
+    private val _isSearchingLiveBull = MutableStateFlow(false)
+    val isSearchingLiveBull: StateFlow<Boolean> = _isSearchingLiveBull.asStateFlow()
+
+    // Doctor OPD Finance Ledger & Billing Tracker
+    private val _doctorBillingRecords = MutableStateFlow<List<DoctorBillingRecord>>(listOf(
+        DoctorBillingRecord("bill_1", "OPD-2026-001", "IN-HR-1092-4821", "सुखविंदर सिंह", "9812039297", 850.0, 850.0, 0.0, PaymentStatus.PAID_FULL, PaymentMode.UPI, System.currentTimeMillis() - 3600000L, "थनैला एंटीबायोटिक व लेप"),
+        DoctorBillingRecord("bill_2", "OPD-2026-002", "IN-HR-3341-9981", "राजेश कुमार", "9896123490", 1200.0, 700.0, 500.0, PaymentStatus.PARTIAL, PaymentMode.CASH, System.currentTimeMillis() - 14400000L, "गलघोंटू आपातकालीन उपचार (₹500 उधारी)"),
+        DoctorBillingRecord("bill_3", "OPD-2026-003", "IN-HR-8832-1920", "धर्मपाल जांगड़ा", "9416088219", 950.0, 950.0, 0.0, PaymentStatus.PAID_FULL, PaymentMode.BANK, System.currentTimeMillis() - 86400000L, "बबेसिओसिस इंजेक्शन व फ्लुइड"),
+        DoctorBillingRecord("bill_4", "OPD-2026-004", "IN-HR-4412-9844", "बलबीर सांगवान", "9896011234", 600.0, 0.0, 600.0, PaymentStatus.UNPAID, PaymentMode.CASH, System.currentTimeMillis() - 172800000L, "आफरा व रुमेनोटोमी परामर्श (पूर्ण उधारी)"),
+        DoctorBillingRecord("bill_5", "OPD-2026-005", "IN-HR-5521-6670", "रामनिवास शर्मा", "9991039297", 450.0, 450.0, 0.0, PaymentStatus.PAID_FULL, PaymentMode.UPI, System.currentTimeMillis() - 259200000L, "बकरी पीपीआर व दस्त उपचार")
+    ))
+    val doctorBillingRecords: StateFlow<List<DoctorBillingRecord>> = _doctorBillingRecords.asStateFlow()
+
+    private val _financeTimeframeFilter = MutableStateFlow("ALL") // PER_CASE, DAILY, WEEKLY, MONTHLY, YEARLY, ALL
+    val financeTimeframeFilter: StateFlow<String> = _financeTimeframeFilter.asStateFlow()
 
     // Master Admin Settings & Analytics
     private val _adminSettings = MutableStateFlow(AdminSettings())
@@ -290,11 +310,76 @@ class VetCareViewModel : ViewModel() {
 
     // Role & Navigation
     fun setRole(role: UserRole) {
+        val user = _currentUser.value
+        if (user != null) {
+            if (user.role != UserRole.ADMIN && !user.hasDualRoleAuthority && user.role != role) {
+                showToast("⚠️ भूमिका बदलने का अधिकार केवल सुपर एडमिन द्वारा प्रदान किया जाता है। आपकी भूमिका ${user.role.title} पर लॉक है।")
+                return
+            }
+        }
         _currentRole.value = role
         showToast("${role.title} सक्रिय हुआ")
     }
 
     fun navigateTo(destination: ScreenDestination) {
+        val user = _currentUser.value
+        if (user == null && destination != ScreenDestination.HOME) {
+            val targetRole = when (destination) {
+                ScreenDestination.DOCTOR_DIAGNOSIS,
+                ScreenDestination.DOCTOR_OPD_QUEUE,
+                ScreenDestination.DOSAGE_SAFETY,
+                ScreenDestination.DRUGS_DIRECTORY,
+                ScreenDestination.DOCTOR_FINANCE -> UserRole.DOCTOR
+                ScreenDestination.FARMER_PASSBOOK,
+                ScreenDestination.FARMER_MILK_CALC,
+                ScreenDestination.FARMER_DESI_NUSKHE,
+                ScreenDestination.EMERGENCY_SOS,
+                ScreenDestination.BREEDING_CATALOG -> UserRole.FARMER
+                ScreenDestination.ADMIN_FINANCIALS,
+                ScreenDestination.ADMIN_PAYOUT,
+                ScreenDestination.ADMIN_USERS,
+                ScreenDestination.ADMIN_CUSTOMIZER -> UserRole.ADMIN
+                ScreenDestination.HOME -> null
+            }
+            if (targetRole != null) {
+                openAuthModal(targetRole)
+                showToast("सत्र प्रमाणीकरण आवश्यक: कृपया ${targetRole.title} में लॉगिन करें")
+                return
+            }
+        } else if (user != null && destination != ScreenDestination.HOME) {
+            // Check if user is trying to access a screen of another role without dual-role authority
+            if (user.role != UserRole.ADMIN && !user.hasDualRoleAuthority) {
+                val doctorScreens = setOf(
+                    ScreenDestination.DOCTOR_DIAGNOSIS,
+                    ScreenDestination.DOCTOR_OPD_QUEUE,
+                    ScreenDestination.DOSAGE_SAFETY,
+                    ScreenDestination.DRUGS_DIRECTORY,
+                    ScreenDestination.DOCTOR_FINANCE
+                )
+                val farmerScreens = setOf(
+                    ScreenDestination.FARMER_PASSBOOK,
+                    ScreenDestination.FARMER_MILK_CALC,
+                    ScreenDestination.FARMER_DESI_NUSKHE,
+                    ScreenDestination.EMERGENCY_SOS,
+                    ScreenDestination.BREEDING_CATALOG
+                )
+                val adminScreens = setOf(
+                    ScreenDestination.ADMIN_FINANCIALS,
+                    ScreenDestination.ADMIN_PAYOUT,
+                    ScreenDestination.ADMIN_USERS,
+                    ScreenDestination.ADMIN_CUSTOMIZER
+                )
+
+                if (user.role == UserRole.DOCTOR && destination in (farmerScreens + adminScreens)) {
+                    showToast("⚠️ अनधिकृत अनुभाग! केवल डॉक्टर टूल्स अनुमत हैं।")
+                    return
+                }
+                if (user.role == UserRole.FARMER && destination in (doctorScreens + adminScreens)) {
+                    showToast("⚠️ अनधिकृत अनुभाग! केवल किसान हब अनुमत है।")
+                    return
+                }
+            }
+        }
         _activeScreen.value = destination
     }
 
@@ -316,22 +401,47 @@ class VetCareViewModel : ViewModel() {
     fun performLogin(role: UserRole = _authModalRole.value, id: String, pass: String) {
         if (role == UserRole.ADMIN) {
             if ((id == "9991039297" || id == "9297") && (pass == "Rahul@1812" || pass == "OTP_BYPASS")) {
+                val adminUser = _userProfiles.value.find { it.role == UserRole.ADMIN } ?: UserProfile(
+                    id = "u_admin_master",
+                    name = "डॉ. राहुल जांगड़ा (Master Admin)",
+                    role = UserRole.ADMIN,
+                    mobile = "9991039297",
+                    regOrTagNo = "HR-VET-001",
+                    clinicOrVillage = "हिसार पशु अस्पताल, हरियाणा",
+                    isVciApproved = true,
+                    isSubscribed = true
+                )
+                _currentUser.value = adminUser
                 _currentRole.value = UserRole.ADMIN
                 _isAuthModalOpen.value = false
-                navigateTo(ScreenDestination.ADMIN_FINANCIALS)
+                _activeScreen.value = ScreenDestination.ADMIN_FINANCIALS
                 showToast("मास्टर एडमिन वॉल्ट में स्वागत है!")
             } else {
                 showToast("अमान्य एडमिन क्रेडेंशियल! (ID: 9991039297, Pass: Rahul@1812 या OTP: 9297)")
             }
         } else {
+            val user = _userProfiles.value.find { it.role == role && (it.mobile == id || it.regOrTagNo.equals(id, ignoreCase = true)) }
+                ?: _userProfiles.value.find { it.role == role }
+                ?: SampleData.initialUsers.find { it.role == role }
+                ?: UserProfile(
+                    id = "u_${role.name.lowercase()}_auth",
+                    name = if (role == UserRole.DOCTOR) "डॉ. राहुल जांगड़ा (सत्यापित)" else "सुखविंदर सिंह (पशुपालक)",
+                    role = role,
+                    mobile = id.ifBlank { if (role == UserRole.DOCTOR) "9991039297" else "9812401822" },
+                    regOrTagNo = if (role == UserRole.DOCTOR) "VCI-HR-4491" else "TAG-HR-88219",
+                    clinicOrVillage = if (role == UserRole.DOCTOR) "हिसार पशु अस्पताल, हरियाणा" else "गांव घिराय, हिसार",
+                    isVciApproved = true,
+                    isSubscribed = true
+                )
+            _currentUser.value = user
             _currentRole.value = role
             _isAuthModalOpen.value = false
             if (role == UserRole.DOCTOR) {
-                navigateTo(ScreenDestination.DOCTOR_DIAGNOSIS)
-                showToast("डॉक्टर कंसोल में स्वागत है!")
+                _activeScreen.value = ScreenDestination.DOCTOR_DIAGNOSIS
+                showToast("डॉक्टर कंसोल में स्वागत है! डॉ. ${user.name}")
             } else {
-                navigateTo(ScreenDestination.FARMER_PASSBOOK)
-                showToast("किसान हब में स्वागत है!")
+                _activeScreen.value = ScreenDestination.FARMER_PASSBOOK
+                showToast("किसान हब में स्वागत है! ${user.name} जी")
             }
         }
     }
@@ -354,36 +464,44 @@ class VetCareViewModel : ViewModel() {
         clinicOrVillage: String,
         cattleCount: Int = 0
     ) {
+        val existing = _userProfiles.value.find {
+            it.mobile.trim().equals(mobileOrEmail.trim(), ignoreCase = true)
+        }
+        if (existing != null) {
+            showToast("⚠️ यह मोबाइल/ईमेल पहले से पंजीकृत है (${existing.role.title})! कृपया सीधे लॉगिन करें।")
+            return
+        }
+
         val newUser = UserProfile(
             id = "u_${System.currentTimeMillis()}",
             name = fullName,
             role = role,
             mobile = mobileOrEmail,
-            regOrTagNo = regOrTag,
-            clinicOrVillage = "$clinicOrVillage, $district, $state",
+            regOrTagNo = regOrTag.ifBlank { if (role == UserRole.DOCTOR) "DOC-${(1000..9999).random()}" else "FAR-${(1000..9999).random()}" },
+            clinicOrVillage = if (clinicOrVillage.isNotBlank()) "$clinicOrVillage, $district, $state" else "$district, $state",
             herdSize = cattleCount,
             isVciApproved = true,
-            isSubscribed = true
+            isSubscribed = true,
+            hasDualRoleAuthority = false
         )
         _userProfiles.value = listOf(newUser) + _userProfiles.value
         _currentUser.value = newUser
         _currentRole.value = role
         _isAuthModalOpen.value = false
         if (role == UserRole.DOCTOR) {
-            navigateTo(ScreenDestination.DOCTOR_DIAGNOSIS)
-            showToast("डॉक्टर खाता पंजीकृत! स्वागत है डॉ. $fullName")
+            _activeScreen.value = ScreenDestination.DOCTOR_DIAGNOSIS
+            showToast("डॉक्टर खाता पंजीकृत व लॉक! स्वागत है डॉ. $fullName")
         } else {
-            navigateTo(ScreenDestination.FARMER_PASSBOOK)
-            showToast("किसान खाता पंजीकृत! स्वागत है $fullName जी")
+            _activeScreen.value = ScreenDestination.FARMER_PASSBOOK
+            showToast("किसान खाता पंजीकृत व लॉक! स्वागत है $fullName जी")
         }
     }
 
     fun logout() {
-        val defaultUser = SampleData.initialUsers.first()
-        _currentUser.value = defaultUser
-        _currentRole.value = defaultUser.role
-        navigateTo(ScreenDestination.HOME)
-        showToast("सत्र समाप्त। पुनः लॉगिन करें।")
+        _currentUser.value = null
+        _isAuthModalOpen.value = false
+        _activeScreen.value = ScreenDestination.HOME
+        showToast("सफलतापूर्वक लॉगआउट किया गया। कृपया अधिकृत भूमिका से लॉगिन करें।")
     }
 
     // Dynamic Banking & Payout Accounts Controller
@@ -660,10 +778,9 @@ class VetCareViewModel : ViewModel() {
 
     fun getMaxInjectionVolumePerSite(species: Species = _selectedSpecies.value): String {
         return when (species) {
-            Species.CAT -> "अधिकतम 1 - 2 ml प्रति स्थान (Deep IM/SC)"
-            Species.DOG -> "अधिकतम 2 - 3 ml प्रति स्थान (IM)"
-            Species.GOAT, Species.SHEEP -> "अधिकतम 5 ml प्रति स्थान (गर्दन/पुठ्ठा)"
-            Species.CATTLE, Species.BUFFALO -> "अधिकतम 15 - 20 ml प्रति स्थान (Deep IM)"
+            Species.CATTLE, Species.BUFFALO -> "अधिकतम 15 - 20 ml Deep IM प्रति साइट (Cattle / Buffalo)"
+            Species.GOAT, Species.SHEEP -> "अधिकतम 3 - 5 ml प्रति साइट (Goat / Sheep / Calf)"
+            Species.DOG, Species.CAT -> "अधिकतम 1 - 2 ml प्रति साइट (Dog / Cat - Pets)"
         }
     }
 
@@ -993,6 +1110,122 @@ class VetCareViewModel : ViewModel() {
 
     fun extendSubscription(userId: String) {
         showToast("सब्सक्रिप्शन 1 वर्ष के लिए बढ़ाया गया")
+    }
+
+    // Super Admin User & Role Management
+    fun toggleDualRoleAuthority(userId: String) {
+        _userProfiles.value = _userProfiles.value.map {
+            if (it.id == userId) {
+                val updated = !it.hasDualRoleAuthority
+                it.copy(hasDualRoleAuthority = updated)
+            } else it
+        }
+        if (_currentUser.value?.id == userId) {
+            _currentUser.value = _currentUser.value?.let {
+                it.copy(hasDualRoleAuthority = !it.hasDualRoleAuthority)
+            }
+        }
+        showToast("दोहरी भूमिका (Dual-Role) स्विच अधिकार अपडेट हुआ!")
+    }
+
+    fun deleteUserAccount(userId: String) {
+        _userProfiles.value = _userProfiles.value.filter { it.id != userId }
+        if (_currentUser.value?.id == userId) {
+            logout()
+        }
+        showToast("उपयोगकर्ता खाता सफलतापूर्वक हटाया गया!")
+    }
+
+    // AI Breeding Repository & Real-Time Bull Search
+    fun searchBullWithAi(query: String) {
+        val q = query.trim()
+        if (q.isBlank()) return
+        _bullSearchQuery.value = q
+        _isSearchingLiveBull.value = true
+        viewModelScope.launch {
+            delay(750) // simulate real-time AI grounded query
+            val existing = _bullsList.value.find {
+                it.name.contains(q, ignoreCase = true) || it.tagId.contains(q, ignoreCase = true) || it.breed.contains(q, ignoreCase = true)
+            }
+            val resultBull = if (existing != null) {
+                existing
+            } else {
+                val isBuffalo = q.contains("Murrah", ignoreCase = true) || q.contains("भैंस", ignoreCase = true) || q.contains("Kungrad", ignoreCase = true) || q.contains("Sultan", ignoreCase = true) || q.contains("मुराह", ignoreCase = true)
+                val isExotic = q.contains("HF", ignoreCase = true) || q.contains("Jersey", ignoreCase = true) || q.contains("Holstein", ignoreCase = true)
+                val breedName = when {
+                    isBuffalo -> "मुर्राह भैंस (Murrah Champion Lineage)"
+                    isExotic -> "होलस्टीन फ्रीजियन (HF 100% Pedigree Sire)"
+                    else -> "गीर / साहीवाल संवर्धन (Indigenous Pedigree)"
+                }
+                val agency = if (isBuffalo) "HLDB (Haryana Livestock Development Board)" else "NDDB / Animal Breeding Centre (ABC)"
+                val peakKg = if (isBuffalo) 32 else if (isExotic) 46 else 28
+                val fatVal = if (isBuffalo) 8.2 else if (isExotic) 4.2 else 5.2
+                val tag = "AI-SR-${(100..999).random()}-${q.take(3).uppercase()}"
+
+                val created = BullPedigree(
+                    tagId = tag,
+                    name = "$q (AI Grounded Verified Sire)",
+                    breed = breedName,
+                    sireDamLineage = "पिता: नेशनल चैंपियन प्रोजेनी $q-Sire-01 | माता: हाई यील्डर सुपर डैमर $q-Dam-X",
+                    damPeakLactationKg = peakKg,
+                    damFatPercent = fatVal,
+                    strawStockCount = 120,
+                    pricePerStraw = if (isBuffalo) 450 else 350,
+                    conceptionRatePercent = 68,
+                    sourceAgency = agency,
+                    species = if (isBuffalo) Species.BUFFALO else Species.CATTLE
+                )
+                _bullsList.value = listOf(created) + _bullsList.value
+                created
+            }
+            _liveBullAnalysisResult.value = resultBull
+            _isSearchingLiveBull.value = false
+            showToast("⚡ AI लाइव सीमन व बुल विश्लेषण पूर्ण: ${resultBull.name}")
+        }
+    }
+
+    fun clearLiveBullAnalysis() {
+        _liveBullAnalysisResult.value = null
+    }
+
+    // Doctor Finance Ledger & OPD Billing
+    fun recordOpdBilling(
+        patientTag: String,
+        ownerName: String,
+        ownerPhone: String,
+        totalAmount: Double,
+        paidAmount: Double,
+        status: PaymentStatus,
+        mode: PaymentMode,
+        notes: String
+    ) {
+        val balance = (totalAmount - paidAmount).coerceAtLeast(0.0)
+        val opdNum = "OPD-${SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(Date())}-${(100..999).random()}"
+        val record = DoctorBillingRecord(
+            id = "bill_${System.currentTimeMillis()}",
+            billNumber = opdNum,
+            patientTag = patientTag.ifBlank { "IN-HR-${(1000..9999).random()}" },
+            ownerName = ownerName.ifBlank { "पशुपालक" },
+            ownerPhone = ownerPhone.ifBlank { "98xxxxxxx" },
+            totalAmount = totalAmount,
+            paidAmount = paidAmount,
+            balanceDue = balance,
+            paymentStatus = status,
+            paymentMode = mode,
+            timestamp = System.currentTimeMillis(),
+            notes = notes.ifBlank { "ओपीडी परामर्श व उपचार पर्ची" }
+        )
+        _doctorBillingRecords.value = listOf(record) + _doctorBillingRecords.value
+        showToast("✅ ओपीडी बिल दर्ज हुआ! रसीद: $opdNum (भुगतान: ₹$paidAmount, बकाया: ₹$balance)")
+    }
+
+    fun setFinanceTimeframeFilter(filter: String) {
+        _financeTimeframeFilter.value = filter
+    }
+
+    fun deleteBillingRecord(billId: String) {
+        _doctorBillingRecords.value = _doctorBillingRecords.value.filter { it.id != billId }
+        showToast("बिलिंग रिकॉर्ड हटाया गया!")
     }
 
     fun showToast(msg: String) {

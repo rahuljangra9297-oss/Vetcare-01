@@ -37,6 +37,8 @@ fun BreedingCatalogScreen(
     val bullSearch by viewModel.bullSearchQuery.collectAsState()
     val breedFilter by viewModel.bullBreedFilter.collectAsState()
     val agencyFilter by viewModel.bullAgencyFilter.collectAsState()
+    val liveBullResult by viewModel.liveBullAnalysisResult.collectAsState()
+    val isSearchingLiveBull by viewModel.isSearchingLiveBull.collectAsState()
     var selectedBreedingTab by remember { mutableStateOf(0) }
 
     val filteredBulls = bullsList.filter { bull ->
@@ -144,28 +146,79 @@ fun BreedingCatalogScreen(
                     modifier = Modifier.fillMaxWidth().shadow(1.dp, RoundedCornerShape(12.dp))
                 ) {
                     Column(modifier = Modifier.padding(10.dp)) {
-                        OutlinedTextField(
-                            value = bullSearch,
-                            onValueChange = { viewModel.setBullSearchQuery(it) },
-                            placeholder = { Text("सांड/नर का नाम, टैग कोड (BUL-MUR-29) खोजें...", fontSize = 12.sp, color = Slate500) },
-                            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = AgroEmeraldPrimary) },
-                            trailingIcon = {
-                                if (bullSearch.isNotBlank()) {
-                                    IconButton(onClick = { viewModel.setBullSearchQuery("") }) {
-                                        Icon(Icons.Default.Close, contentDescription = "Clear", tint = Slate500)
-                                    }
-                                }
-                            },
-                            singleLine = true,
+                        Row(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(10.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = AgroEmeraldPrimary,
-                                unfocusedBorderColor = FrostedCardBorder,
-                                focusedTextColor = Slate900,
-                                unfocusedTextColor = Slate900
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OutlinedTextField(
+                                value = bullSearch,
+                                onValueChange = { viewModel.setBullSearchQuery(it) },
+                                placeholder = { Text("किसी भी सांड/नस्ल का नाम (उदा. अर्जुन कुंगड़, गीर, HF)...", fontSize = 11.5.sp, color = Slate500) },
+                                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = AgroEmeraldPrimary) },
+                                trailingIcon = {
+                                    if (bullSearch.isNotBlank()) {
+                                        IconButton(onClick = { viewModel.setBullSearchQuery("") }) {
+                                            Icon(Icons.Default.Close, contentDescription = "Clear", tint = Slate500)
+                                        }
+                                    }
+                                },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(10.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = AgroEmeraldPrimary,
+                                    unfocusedBorderColor = FrostedCardBorder,
+                                    focusedTextColor = Slate900,
+                                    unfocusedTextColor = Slate900
+                                )
                             )
-                        )
+
+                            Button(
+                                onClick = { viewModel.searchBullWithAi(bullSearch.ifBlank { "अर्जुन कुंगड़ (Arjun Kungrad)" }) },
+                                colors = ButtonDefaults.buttonColors(containerColor = AgroEmeraldPrimary),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.height(52.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp)
+                            ) {
+                                Text("⚡ AI सर्च", fontSize = 11.5.sp, fontWeight = FontWeight.Black, color = Color.White)
+                            }
+                        }
+
+                        // AI Loading State or Live Bull Card
+                        if (isSearchingLiveBull) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Surface(
+                                color = AgroEmeraldLight,
+                                shape = RoundedCornerShape(10.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, AgroEmeraldPrimary),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    CircularProgressIndicator(modifier = Modifier.size(20.dp), color = AgroEmeraldPrimary, strokeWidth = 2.dp)
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Text(
+                                        text = "⚡ AI वेब-ग्राउंडेड पेडिग्री, दूध रिकॉर्ड व सीमन बैंक विश्लेषण चालू है...",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = AgroEmeraldDark
+                                    )
+                                }
+                            }
+                        } else if (liveBullResult != null) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            LiveAiBullAnalysisCard(
+                                bull = liveBullResult!!,
+                                onBookStraw = {
+                                    viewModel.showToast("सीमन स्ट्रा सफलतापूर्वक बुक! (${liveBullResult!!.name})")
+                                },
+                                onClear = { viewModel.clearLiveBullAnalysis() }
+                            )
+                        }
+
                         Spacer(modifier = Modifier.height(10.dp))
 
                         // Source Agency Filter (HLDB, ABC, NDDB, BAIF)
@@ -621,6 +674,142 @@ fun CalvingMilestoneItem(
                 fontWeight = FontWeight.SemiBold,
                 color = Slate900
             )
+        }
+    }
+}
+
+@Composable
+fun LiveAiBullAnalysisCard(
+    bull: BullPedigree,
+    onBookStraw: () -> Unit,
+    onClear: () -> Unit
+) {
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = DaylightSurface),
+        border = androidx.compose.foundation.BorderStroke(2.dp, AgroEmeraldPrimary),
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(4.dp, RoundedCornerShape(16.dp))
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        color = AgroEmeraldLight,
+                        shape = RoundedCornerShape(8.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, AgroEmeraldPrimary)
+                    ) {
+                        Text(
+                            text = "⚡ AI लाइव विश्लेषण",
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.Black,
+                            color = AgroEmeraldDark,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = bull.tagId,
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Slate600
+                    )
+                }
+
+                IconButton(
+                    onClick = onClear,
+                    modifier = Modifier.size(28.dp).clip(CircleShape).background(Slate100)
+                ) {
+                    Icon(Icons.Default.Close, contentDescription = "Clear", tint = Slate700, modifier = Modifier.size(16.dp))
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = bull.name,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Black,
+                color = Slate900
+            )
+            Text(
+                text = "नस्ल: ${bull.breed} • बैंक: ${bull.sourceAgency}",
+                fontSize = 11.5.sp,
+                fontWeight = FontWeight.Bold,
+                color = AgroEmeraldDark
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Stats Grid
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Surface(
+                    color = DaylightCanvas,
+                    shape = RoundedCornerShape(10.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, FrostedCardBorder),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Column(modifier = Modifier.padding(8.dp)) {
+                        Text("माता का दूध रिकॉर्ड", fontSize = 9.5.sp, color = Slate600, fontWeight = FontWeight.Bold)
+                        Text("${bull.damPeakLactationKg} kg/दिन (${bull.damFatPercent}% वसा)", fontSize = 11.sp, fontWeight = FontWeight.Black, color = Slate900)
+                    }
+                }
+
+                Surface(
+                    color = DaylightCanvas,
+                    shape = RoundedCornerShape(10.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, FrostedCardBorder),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Column(modifier = Modifier.padding(8.dp)) {
+                        Text("गर्भधारण दर (CR)", fontSize = 9.5.sp, color = Slate600, fontWeight = FontWeight.Bold)
+                        Text("${bull.conceptionRatePercent}%", fontSize = 11.sp, fontWeight = FontWeight.Black, color = GreenSuccessDark)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Surface(
+                color = DaylightCanvas,
+                shape = RoundedCornerShape(10.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, FrostedCardBorder),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(8.dp)) {
+                    Text("वंशावली / पेडिग्री (Lineage):", fontSize = 10.sp, fontWeight = FontWeight.Black, color = Slate900)
+                    Text(bull.sireDamLineage, fontSize = 10.5.sp, color = Slate700)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("सीमन स्ट्रा मूल्य: ₹${bull.pricePerStraw}/-", fontSize = 13.sp, fontWeight = FontWeight.Black, color = AgroEmeraldDark)
+                    Text("उपलब्ध स्ट्रा: ${bull.strawStockCount} डोज", fontSize = 10.sp, color = Slate600)
+                }
+
+                Button(
+                    onClick = onBookStraw,
+                    colors = ButtonDefaults.buttonColors(containerColor = AgroEmeraldPrimary),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("✅ स्ट्रा बुक करें", fontSize = 11.5.sp, fontWeight = FontWeight.Black, color = Color.White)
+                }
+            }
         }
     }
 }

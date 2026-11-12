@@ -76,6 +76,8 @@ fun DoctorWorkspaceScreen(
     val pharmacopeiaSearch by viewModel.pharmacopeiaSearchQuery.collectAsState()
     val pharmacopeiaList by viewModel.pharmacopeiaList.collectAsState()
     val pharmacopeiaCategory by viewModel.pharmacopeiaCategoryFilter.collectAsState()
+    val adminSettings by viewModel.adminSettings.collectAsState()
+    val currentUser by viewModel.currentUser.collectAsState()
 
     val context = LocalContext.current
 
@@ -457,8 +459,10 @@ fun DoctorWorkspaceScreen(
                                         context = context,
                                         result = result,
                                         patientName = "टैग #UP-78-4091 (${species.hindiName})",
-                                        doctorName = "Dr. R. Sharma, B.V.Sc & A.H.",
-                                        councilReg = "VCI-89241"
+                                        doctorName = currentUser?.name ?: "Dr. Rahul Jangra, B.V.Sc & A.H.",
+                                        councilReg = currentUser?.regOrTagNo ?: "VCI-89241",
+                                        clinicTitle = adminSettings.clinicName.ifBlank { "VETCARE AI OS (CLINICAL TELE-PRESCRIPTION)" },
+                                        clinicSubtitle = adminSettings.clinicSubtitle.ifBlank { "Authorized Veterinary Practitioner Portal | ISO 9001:2026 Compliant Rx" }
                                     )
                                 },
                                 onPdfShare = {
@@ -466,8 +470,10 @@ fun DoctorWorkspaceScreen(
                                         context = context,
                                         result = result,
                                         patientName = "टैग #UP-78-4091 (${species.hindiName})",
-                                        doctorName = "Dr. R. Sharma, B.V.Sc & A.H.",
-                                        councilReg = "VCI-89241"
+                                        doctorName = currentUser?.name ?: "Dr. Rahul Jangra, B.V.Sc & A.H.",
+                                        councilReg = currentUser?.regOrTagNo ?: "VCI-89241",
+                                        clinicTitle = adminSettings.clinicName.ifBlank { "VETCARE AI OS (CLINICAL TELE-PRESCRIPTION)" },
+                                        clinicSubtitle = adminSettings.clinicSubtitle.ifBlank { "Authorized Veterinary Practitioner Portal | ISO 9001:2026 Compliant Rx" }
                                     )
                                 },
                                 onWhatsApp = {
@@ -482,7 +488,20 @@ fun DoctorWorkspaceScreen(
                                     } catch (e: Exception) {
                                         viewModel.showToast("शेयरिंग उपलब्ध नहीं है")
                                     }
-                                }
+                                },
+                                onRecordBill = { total, paid, status, mode, notes ->
+                                    viewModel.recordOpdBilling(
+                                        patientTag = "टैग #UP-78-4091 (${species.hindiName})",
+                                        ownerName = "राजेश कुमार (पशुपालक)",
+                                        ownerPhone = "9896123490",
+                                        totalAmount = total,
+                                        paidAmount = paid,
+                                        status = status,
+                                        mode = mode,
+                                        notes = "${result.disease.hindiName} - $notes"
+                                    )
+                                },
+                                onNavigateToFinance = { viewModel.navigateTo(ScreenDestination.DOCTOR_FINANCE) }
                             )
                         }
                     } ?: item {
@@ -1393,8 +1412,10 @@ fun DoctorWorkspaceScreen(
                             context = context,
                             result = result,
                             patientName = "टैग #UP-78-4091 (${species.hindiName})",
-                            doctorName = "Dr. R. Sharma, B.V.Sc & A.H.",
-                            councilReg = "VCI-89241"
+                            doctorName = currentUser?.name ?: "Dr. Rahul Jangra, B.V.Sc & A.H.",
+                            councilReg = currentUser?.regOrTagNo ?: "VCI-89241",
+                            clinicTitle = adminSettings.clinicName.ifBlank { "VETCARE AI OS (CLINICAL TELE-PRESCRIPTION)" },
+                            clinicSubtitle = adminSettings.clinicSubtitle.ifBlank { "Authorized Veterinary Practitioner Portal | ISO 9001:2026 Compliant Rx" }
                         )
                     },
                     onPdfShare = {
@@ -1402,8 +1423,10 @@ fun DoctorWorkspaceScreen(
                             context = context,
                             result = result,
                             patientName = "टैग #UP-78-4091 (${species.hindiName})",
-                            doctorName = "Dr. R. Sharma, B.V.Sc & A.H.",
-                            councilReg = "VCI-89241"
+                            doctorName = currentUser?.name ?: "Dr. Rahul Jangra, B.V.Sc & A.H.",
+                            councilReg = currentUser?.regOrTagNo ?: "VCI-89241",
+                            clinicTitle = adminSettings.clinicName.ifBlank { "VETCARE AI OS (CLINICAL TELE-PRESCRIPTION)" },
+                            clinicSubtitle = adminSettings.clinicSubtitle.ifBlank { "Authorized Veterinary Practitioner Portal | ISO 9001:2026 Compliant Rx" }
                         )
                     },
                     onWhatsApp = {
@@ -1418,7 +1441,20 @@ fun DoctorWorkspaceScreen(
                         } catch (e: Exception) {
                             viewModel.showToast("शेयरिंग उपलब्ध नहीं है")
                         }
-                    }
+                    },
+                    onRecordBill = { total, paid, status, mode, notes ->
+                        viewModel.recordOpdBilling(
+                            patientTag = "टैग #UP-78-4091 (${species.hindiName})",
+                            ownerName = "राजेश कुमार (पशुपालक)",
+                            ownerPhone = "9896123490",
+                            totalAmount = total,
+                            paidAmount = paid,
+                            status = status,
+                            mode = mode,
+                            notes = "${result.disease.hindiName} - $notes"
+                        )
+                    },
+                    onNavigateToFinance = { viewModel.navigateTo(ScreenDestination.DOCTOR_FINANCE) }
                 )
             }
         }
@@ -1549,10 +1585,12 @@ fun ClinicalPrescriptionPad(
     onSelectGenericSalt: (String) -> Unit = {},
     onPrint: () -> Unit,
     onPdfShare: () -> Unit = {},
-    onWhatsApp: () -> Unit
+    onWhatsApp: () -> Unit,
+    onRecordBill: ((total: Double, paid: Double, status: PaymentStatus, mode: PaymentMode, notes: String) -> Unit)? = null,
+    onNavigateToFinance: (() -> Unit)? = null
 ) {
     val disease = result.disease
-    val tabs = listOf("💉 इंजेक्शन", "🧴 ओरल", "🌿 आयुर्वेदिक", "💧 होम्योपैथिक", "🥣 देसी नुस्खे", "🔬 लैब टेस्ट")
+    val tabs = listOf("💉 इंजेक्शन", "🧴 ओरल", "🌿 आयुर्वेदिक", "💧 होम्योपैथिक", "🥣 देसी नुस्खे", "🔬 लैब टेस्ट", "🏡 प्रबंधन सुझाव")
 
     Card(
         shape = RoundedCornerShape(20.dp),
@@ -1672,9 +1710,9 @@ fun ClinicalPrescriptionPad(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // 5-Tier Treatment Horizontal Sliding Tabs
+            // 6-Tier Treatment Horizontal Sliding Tabs
             Text(
-                text = "4️⃣ 5-स्तरीय संपूर्ण उपचार योजना (Swipeable Tabs):",
+                text = "4️⃣ 6-स्तरीय संपूर्ण उपचार व प्रबंधन योजना (Swipeable Tabs):",
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Black,
                 color = MedicalCyanDark
@@ -1729,6 +1767,9 @@ fun ClinicalPrescriptionPad(
                 5 -> { // Lab Tests & MRP
                     LabTestsSwipeableTable(labTests = disease.labTests)
                 }
+                6 -> { // Lifestyle & Management Tips
+                    LifestyleHusbandryTipsCard(disease = disease)
+                }
             }
 
             Spacer(modifier = Modifier.height(14.dp))
@@ -1770,6 +1811,21 @@ fun ClinicalPrescriptionPad(
                 ) {
                     Text("📲 WhatsApp", fontSize = 11.5.sp, fontWeight = FontWeight.Black, color = Color.White)
                 }
+            }
+
+            // OPD Billing & Payment Settlement Section
+            if (onRecordBill != null) {
+                Spacer(modifier = Modifier.height(14.dp))
+                Divider(color = FrostedCardBorder, thickness = 1.dp)
+                Spacer(modifier = Modifier.height(12.dp))
+
+                OpdBillingSettlementSection(
+                    patientTag = "टैग #IN-HR-1092-4821",
+                    onSaveBill = { total, paid, status, mode, notes ->
+                        onRecordBill(total, paid, status, mode, notes)
+                    },
+                    onViewLedger = onNavigateToFinance
+                )
             }
         }
     }
@@ -2688,6 +2744,690 @@ fun PharmacopeiaModalDialog(
                     modifier = Modifier.fillMaxWidth().height(42.dp)
                 ) {
                     Text("बंद करें (Close)", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun LifestyleHusbandryTipsCard(disease: DiseaseDefinition) {
+    val tips = if (disease.lifestyleHusbandryTips.isNotEmpty()) {
+        disease.lifestyleHusbandryTips
+    } else {
+        when {
+            disease.scientificName.contains("Prolapse", ignoreCase = true) || disease.hindiName.contains("प्रोलैप्स") || disease.hindiName.contains("फूल") -> listOf(
+                "शाम के समय अधिक मात्रा में भारी सूखा चारा या पानी न दें, भोजन को 3-4 बार में थोड़ा-थोड़ा दें।",
+                "पशु के बैठने वाले स्थान के पीछे के फर्श को 3 से 4 इंच ऊंचा रखें (Elevated rear floor) ताकि गर्भाशय पर दबाव कम रहे।",
+                "बासी, फफूंद लगा या सड़ा हुआ आहार सख्त बंद करें। कब्ज से बचाव हेतु चोकर व ईसबगोल की भूसी दें।",
+                "पशु को जबरन ज्यादा देर तक एक ही तरफ लेटने न दें, नियमित हल्की चहलकदमी कराएं।"
+            )
+            disease.scientificName.contains("Mastitis", ignoreCase = true) || disease.hindiName.contains("थनैला") -> listOf(
+                "दूध दुहने के तुरंत बाद 1% पोविडोन आयोडीन या पोटाश पानी से टीट-डिप (Teat Dip) अवश्य करें।",
+                "दूध निकालने के बाद कम से कम 30-45 मिनट तक पशु को बैठने न दें, आगे हरा चारा डाल दें ताकि थन का छेद बंद हो सके।",
+                "बाड़े का फर्श सूखा व चूने का छिड़काव युक्त रखें। गीली जगह पर थनैला जीवाणु तेजी से फैलते हैं।",
+                "दूध दुहने का क्रम: पहले स्वस्थ व युवा पशुओं का दूध निकालें, संक्रमित पशु का दूध सबसे अंत में अलग बर्तन में निकालें।"
+            )
+            disease.scientificName.contains("Ketosis", ignoreCase = true) || disease.hindiName.contains("कीटोसिस") -> listOf(
+                "ब्याने के पहले और बाद में प्रतिदिन 250 ग्राम गुड़ या मीठा शीरा और 200 मिली प्रोपलीन ग्लाइकोल दें।",
+                "अचानक दाना मिश्रण न बदलें, सुपाच्य प्रोटीन व खनिज मिश्रण (MinMix) नियमित दें।",
+                "पशु का वजन ब्याने के समय अत्यधिक मोटा या पतला न होने दें (Optimal BCS 3.5)।"
+            )
+            disease.scientificName.contains("Bloat", ignoreCase = true) || disease.hindiName.contains("आफरा") -> listOf(
+                "सुबह ओस पड़ा गीला बरसीम या हरा चारा खाली पेट न खिलाएं। पहले सूखा तूड़ा या भूसा खिलाएं।",
+                "पशु को अचानक बहुत सारा हरा चारा या दाना न दें, धीरे-धीरे चारे की मात्रा बढ़ाएं।",
+                "आफरा होने पर पशु के मुंह में लकड़ी का बीट बांधें व उसे धीरे-धीरे टहलाएं।"
+            )
+            else -> listOf(
+                "पशु आवास को स्वच्छ, हवादार व सूखा रखें तथा धूप की पर्याप्त व्यवस्था सुनिश्चित करें।",
+                "साफ व ताजा पीने का पानी 24 घंटे उपलब्ध कराएं। नियमित समय पर पौष्टिक संतुलित आहार दें।",
+                "संक्रमित पशु को तुरंत अन्य स्वस्थ पशुओं से अलग (Segregate) करें ताकि रोग का प्रसार रुके।",
+                "पशुशाला में मक्खी, मच्छर व किलनी (Ticks) नियंत्रण हेतु नियमित कीटनाशक छिड़काव करें।"
+            )
+        }
+    }
+
+    Surface(
+        color = DaylightSurface,
+        shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(1.5.dp, MedicalCyanPrimary),
+        modifier = Modifier.fillMaxWidth().shadow(2.dp, RoundedCornerShape(14.dp))
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(MedicalCyanLight),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("🏡", fontSize = 18.sp)
+                }
+                Spacer(modifier = Modifier.width(10.dp))
+                Column {
+                    Text(
+                        text = "प्रबंधन और देखभाल सुझाव (Husbandry Protocol)",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Black,
+                        color = Slate900
+                    )
+                    Text(
+                        text = "रोग-विशिष्ट पशुपालन व जीवनशैली सुधार निर्देश",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MedicalCyanDark
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            tips.forEachIndexed { idx, tip ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Surface(
+                        color = MedicalCyanLight,
+                        shape = CircleShape,
+                        modifier = Modifier.size(22.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                text = "${idx + 1}",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Black,
+                                color = MedicalCyanDark
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = tip,
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Slate900,
+                        lineHeight = 18.sp,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                if (idx < tips.size - 1) {
+                    Divider(color = FrostedCardBorder.copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 4.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun OpdBillingSettlementSection(
+    patientTag: String,
+    onSaveBill: (total: Double, paid: Double, status: PaymentStatus, mode: PaymentMode, notes: String) -> Unit,
+    onViewLedger: (() -> Unit)? = null
+) {
+    var totalAmountInput by remember { mutableStateOf("850") }
+    var paidAmountInput by remember { mutableStateOf("850") }
+    var selectedStatus by remember { mutableStateOf(PaymentStatus.PAID_FULL) }
+    var selectedMode by remember { mutableStateOf(PaymentMode.UPI) }
+    var notesInput by remember { mutableStateOf("ओपीडी परामर्श, दवाइयां व इंजेक्शन") }
+    var billSavedSuccess by remember { mutableStateOf(false) }
+
+    val totalVal = totalAmountInput.toDoubleOrNull() ?: 0.0
+    val paidVal = paidAmountInput.toDoubleOrNull() ?: 0.0
+    val balanceDue = (totalVal - paidVal).coerceAtLeast(0.0)
+
+    Surface(
+        color = Color(0xFFF8FAFC),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.5.dp, TealAccent),
+        modifier = Modifier.fillMaxWidth().shadow(2.dp, RoundedCornerShape(16.dp))
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(TealLight),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("💳", fontSize = 16.sp)
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column {
+                        Text(
+                            text = "ओपीडी बिलिंग व भुगतान सेटलमेंट (OPD Billing)",
+                            fontSize = 13.5.sp,
+                            fontWeight = FontWeight.Black,
+                            color = Slate900
+                        )
+                        Text(
+                            text = "Billing & Payment Settlement • $patientTag",
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TealDark
+                        )
+                    }
+                }
+                if (onViewLedger != null) {
+                    TextButton(onClick = onViewLedger) {
+                        Text("📊 खाता बही", fontSize = 11.5.sp, fontWeight = FontWeight.Black, color = TealDark)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Total Amount & Paid Amount Inputs
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                OutlinedTextField(
+                    value = totalAmountInput,
+                    onValueChange = {
+                        totalAmountInput = it
+                        if (selectedStatus == PaymentStatus.PAID_FULL) {
+                            paidAmountInput = it
+                        }
+                    },
+                    label = { Text("कुल बिल राशि (₹)") },
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.weight(1f),
+                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = TealDark)
+                )
+
+                OutlinedTextField(
+                    value = paidAmountInput,
+                    onValueChange = {
+                        paidAmountInput = it
+                        val p = it.toDoubleOrNull() ?: 0.0
+                        if (p >= totalVal && totalVal > 0) {
+                            selectedStatus = PaymentStatus.PAID_FULL
+                        } else if (p > 0) {
+                            selectedStatus = PaymentStatus.PARTIAL
+                        } else {
+                            selectedStatus = PaymentStatus.UNPAID
+                        }
+                    },
+                    label = { Text("प्राप्त राशि (₹)") },
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.weight(1f),
+                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = GreenSuccess)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Auto-Calculated Balance Due Card
+            Surface(
+                color = if (balanceDue > 0) RedAlertLight else GreenSuccessLight,
+                shape = RoundedCornerShape(10.dp),
+                border = BorderStroke(1.dp, if (balanceDue > 0) RedAlert else GreenSuccess),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (balanceDue > 0) "⚠️ उधारी / शेष बकाया राशि (Balance Due):" else "✅ पूरा भुगतान प्राप्त (Fully Settled):",
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (balanceDue > 0) RedAlert else GreenSuccessDark
+                    )
+                    Text(
+                        text = "₹${"%.2f".format(balanceDue)}",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Black,
+                        color = if (balanceDue > 0) RedAlert else GreenSuccessDark
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Payment Status Selection
+            Text(
+                text = "भुगतान स्थिति (Payment Status):",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Black,
+                color = Slate900
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                listOf(
+                    Triple(PaymentStatus.PAID_FULL, "पूरा भुगतान", GreenSuccess),
+                    Triple(PaymentStatus.PARTIAL, "उधारी / आधा", AmberWarning),
+                    Triple(PaymentStatus.UNPAID, "बकाया (Credit)", RedAlert)
+                ).forEach { (status, label, color) ->
+                    val isSel = selectedStatus == status
+                    Surface(
+                        onClick = {
+                            selectedStatus = status
+                            when (status) {
+                                PaymentStatus.PAID_FULL -> paidAmountInput = totalAmountInput
+                                PaymentStatus.PARTIAL -> paidAmountInput = ((totalAmountInput.toDoubleOrNull() ?: 0.0) / 2.0).toInt().toString()
+                                PaymentStatus.UNPAID -> paidAmountInput = "0"
+                            }
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (isSel) color else Color.White,
+                        border = BorderStroke(1.dp, if (isSel) color else FrostedCardBorder),
+                        modifier = Modifier.weight(1f).height(36.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                text = label,
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.Black,
+                                color = if (isSel) Color.White else Slate900
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Payment Mode Selection
+            Text(
+                text = "भुगतान माध्यम (Payment Mode):",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Black,
+                color = Slate900
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                listOf(
+                    Pair(PaymentMode.CASH, "💵 नकद (Cash)"),
+                    Pair(PaymentMode.UPI, "📱 Online / UPI"),
+                    Pair(PaymentMode.BANK, "🏦 बैंक खाता")
+                ).forEach { (mode, label) ->
+                    val isSel = selectedMode == mode
+                    Surface(
+                        onClick = { selectedMode = mode },
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (isSel) TealDark else Color.White,
+                        border = BorderStroke(1.dp, if (isSel) TealDark else FrostedCardBorder),
+                        modifier = Modifier.weight(1f).height(36.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                text = label,
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.Black,
+                                color = if (isSel) Color.White else Slate900
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Button(
+                onClick = {
+                    onSaveBill(totalVal, paidVal, selectedStatus, selectedMode, notesInput)
+                    billSavedSuccess = true
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = if (billSavedSuccess) GreenSuccess else TealDark),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.fillMaxWidth().height(46.dp)
+            ) {
+                Text(
+                    text = if (billSavedSuccess) "✅ ओपीडी रसीद सहेजी गई!" else "💾 बिल सहेजें व रसीद बनाएं (Save OPD Bill)",
+                    fontSize = 12.5.sp,
+                    fontWeight = FontWeight.Black,
+                    color = Color.White
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun DoctorFinanceDashboardScreen(
+    viewModel: VetCareViewModel
+) {
+    val records by viewModel.doctorBillingRecords.collectAsState()
+    val filter by viewModel.financeTimeframeFilter.collectAsState()
+    val currentUser by viewModel.currentUser.collectAsState()
+    val adminSettings by viewModel.adminSettings.collectAsState()
+    val context = LocalContext.current
+
+    val now = System.currentTimeMillis()
+    val filteredRecords = when (filter) {
+        "DAILY" -> records.filter { now - it.timestamp <= 86400000L }
+        "WEEKLY" -> records.filter { now - it.timestamp <= 7 * 86400000L }
+        "MONTHLY" -> records.filter { now - it.timestamp <= 30 * 86400000L }
+        "YEARLY" -> records.filter { now - it.timestamp <= 365 * 86400000L }
+        else -> records
+    }
+
+    val totalBilled = filteredRecords.sumOf { it.totalAmount }
+    val totalCollected = filteredRecords.sumOf { it.paidAmount }
+    val totalPendingUdhaar = filteredRecords.sumOf { it.balanceDue }
+    val caseCount = filteredRecords.size
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(DaylightCanvas)
+            .verticalScroll(rememberScrollState())
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        // Top Header
+        Card(
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = DaylightSurface),
+            border = BorderStroke(2.dp, TealAccent),
+            modifier = Modifier.fillMaxWidth().shadow(4.dp, RoundedCornerShape(18.dp))
+        ) {
+            Column(modifier = Modifier.padding(14.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(TealLight),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("💰", fontSize = 22.sp)
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "फाइनेंस और हिसाब (Doctor Finance Ledger)",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Slate900
+                            )
+                            Text(
+                                text = "ओपीडी बिलिंग, दैनिक आय व उधारी प्रबंधन",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TealDark
+                            )
+                        }
+                    }
+
+                    IconButton(
+                        onClick = { viewModel.navigateTo(ScreenDestination.DOCTOR_DIAGNOSIS) },
+                        modifier = Modifier.size(38.dp).clip(CircleShape).background(Slate100)
+                    ) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Slate900)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Timeframe Filter Chips
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    listOf(
+                        Pair("ALL", "कुल (All-Time)"),
+                        Pair("DAILY", "दैनिक (Daily)"),
+                        Pair("WEEKLY", "साप्ताहिक (Weekly)"),
+                        Pair("MONTHLY", "मासिक (Monthly)"),
+                        Pair("YEARLY", "वार्षिक (Yearly)")
+                    ).forEach { (fKey, fLabel) ->
+                        val isSel = filter == fKey
+                        FilterChip(
+                            selected = isSel,
+                            onClick = { viewModel.setFinanceTimeframeFilter(fKey) },
+                            label = { Text(fLabel, fontSize = 11.5.sp, fontWeight = if (isSel) FontWeight.Black else FontWeight.Bold) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = TealDark,
+                                selectedLabelColor = Color.White
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
+        // Financial Metrics Cards: Credit (आय) vs Debit (उधारी)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // Income / Credit Card
+            Card(
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = GreenSuccessLight),
+                border = BorderStroke(1.5.dp, GreenSuccess),
+                modifier = Modifier.weight(1f).shadow(2.dp, RoundedCornerShape(14.dp))
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text(
+                        text = "💵 कुल आय (Credit)",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = GreenSuccessDark
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "₹${"%.2f".format(totalCollected)}",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Black,
+                        color = GreenSuccessDark
+                    )
+                    Text(
+                        text = "प्राप्त नकद/UPI",
+                        fontSize = 10.sp,
+                        color = Slate700
+                    )
+                }
+            }
+
+            // Udhaar / Debit Card
+            Card(
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = RedAlertLight),
+                border = BorderStroke(1.5.dp, RedAlert),
+                modifier = Modifier.weight(1f).shadow(2.dp, RoundedCornerShape(14.dp))
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text(
+                        text = "⏳ कुल उधारी (Debit)",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = RedAlert
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "₹${"%.2f".format(totalPendingUdhaar)}",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Black,
+                        color = RedAlert
+                    )
+                    Text(
+                        text = "शेष बकाया राशि",
+                        fontSize = 10.sp,
+                        color = Slate700
+                    )
+                }
+            }
+        }
+
+        // Summary Info Banner & 1-Click PDF Export Button
+        Card(
+            shape = RoundedCornerShape(14.dp),
+            colors = CardDefaults.cardColors(containerColor = DaylightSurface),
+            border = BorderStroke(1.dp, FrostedCardBorder),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "कुल ओपीडी केस: $caseCount | कुल बिलिंग: ₹${"%.2f".format(totalBilled)}",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Black,
+                        color = Slate900
+                    )
+                    Text(
+                        text = "अवधि: ${when (filter) { "DAILY" -> "आज"; "WEEKLY" -> "इस सप्ताह"; "MONTHLY" -> "इस माह"; "YEARLY" -> "इस वर्ष"; else -> "सभी समय" }}",
+                        fontSize = 10.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Slate600
+                    )
+                }
+
+                Button(
+                    onClick = {
+                        RxPdfGenerator.generateAndShareDoctorFinancePdf(
+                            context = context,
+                            records = filteredRecords,
+                            timeframe = filter,
+                            doctorName = currentUser?.name ?: "डॉ. राहुल जांगड़ा",
+                            clinicName = adminSettings.clinicName.ifBlank { "हिसार पशु अस्पताल, हरियाणा" }
+                        )
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = TealDark),
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("📄 1-Click PDF", fontSize = 11.5.sp, fontWeight = FontWeight.Black, color = Color.White)
+                }
+            }
+        }
+
+        // Transactions List
+        Text(
+            text = "ओपीडी पर्ची लेन-देन विवरण (Transaction Log):",
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Black,
+            color = Slate900
+        )
+
+        if (filteredRecords.isEmpty()) {
+            Surface(
+                color = Color.White,
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, FrostedCardBorder),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 20.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text("📋", fontSize = 32.sp)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("इस अवधि में कोई ओपीडी बिलिंग रिकॉर्ड नहीं है।", fontSize = 13.sp, color = Slate600, fontWeight = FontWeight.Bold)
+                }
+            }
+        } else {
+            filteredRecords.forEach { record ->
+                Card(
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = DaylightSurface),
+                    border = BorderStroke(1.dp, if (record.balanceDue > 0) RedAlert.copy(alpha = 0.5f) else FrostedCardBorder),
+                    modifier = Modifier.fillMaxWidth().shadow(2.dp, RoundedCornerShape(14.dp))
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = "${record.billNumber} • ${record.patientTag}",
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = Slate900
+                                )
+                                Text(
+                                    text = "पालक: ${record.ownerName} (${record.ownerPhone})",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Slate600
+                                )
+                            }
+                            Surface(
+                                color = when (record.paymentStatus) {
+                                    PaymentStatus.PAID_FULL -> GreenSuccessLight
+                                    PaymentStatus.PARTIAL -> AmberWarningLight
+                                    PaymentStatus.UNPAID -> RedAlertLight
+                                },
+                                shape = RoundedCornerShape(6.dp),
+                                border = BorderStroke(1.dp, when (record.paymentStatus) {
+                                    PaymentStatus.PAID_FULL -> GreenSuccess
+                                    PaymentStatus.PARTIAL -> AmberWarning
+                                    PaymentStatus.UNPAID -> RedAlert
+                                })
+                            ) {
+                                Text(
+                                    text = when (record.paymentStatus) {
+                                        PaymentStatus.PAID_FULL -> "✅ पूर्ण भुगतान"
+                                        PaymentStatus.PARTIAL -> "⚠️ आधा / उधारी"
+                                        PaymentStatus.UNPAID -> "🚨 बकाया (Credit)"
+                                    },
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = when (record.paymentStatus) {
+                                        PaymentStatus.PAID_FULL -> GreenSuccessDark
+                                        PaymentStatus.PARTIAL -> AmberWarningDark
+                                        PaymentStatus.UNPAID -> RedAlert
+                                    },
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("कुल बिल: ₹${record.totalAmount.toInt()}", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Slate900)
+                            Text("प्राप्त: ₹${record.paidAmount.toInt()} (${record.paymentMode.name})", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = GreenSuccessDark)
+                            if (record.balanceDue > 0) {
+                                Text("उधारी: ₹${record.balanceDue.toInt()}", fontSize = 11.5.sp, fontWeight = FontWeight.Black, color = RedAlert)
+                            }
+                        }
+
+                        if (record.notes.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "उपचार: ${record.notes}",
+                                fontSize = 10.5.sp,
+                                color = Slate600
+                            )
+                        }
+                    }
                 }
             }
         }

@@ -33,6 +33,7 @@ object SampleData {
 
     val initialBulls: List<BullPedigree> = listOf(
         BullPedigree("BUL-MUR-29", "मुराह सुल्तान किंग (Sultan King)", "मुराह भैंस (Murrah)", "बाप: M-14 (NDRI) • मां: Ganga Champion", 5400, 8.2, 140, 450, 68, "HLDB", Species.BUFFALO),
+        BullPedigree("BUL-NLR-08", "नीली-रावी सतलुज (Nili-Ravi Satluj)", "नीली-रावी भैंस (Nili-Ravi)", "बाप: NR-Ferozepur • मां: Satluj Rani 18L", 4600, 8.4, 95, 420, 67, "HLDB", Species.BUFFALO),
         BullPedigree("BUL-JAF-14", "जाफराबादी सम्राट (Samrat)", "जाफराबादी भैंस (Jaffarabadi)", "बाप: JF-09 (Junagadh) • मां: Gir Champion", 4900, 8.8, 85, 420, 66, "NDDB", Species.BUFFALO),
         BullPedigree("BUL-SAH-09", "साहीवाल कान्हा (Kanha Bull)", "साहीवाल गाय (Sahiwal)", "बाप: SW-02 • मां: Nandini Best Yield", 4800, 4.8, 95, 350, 72, "HLDB", Species.CATTLE),
         BullPedigree("BUL-GIR-18", "गीर सोमनाथ गौरव (Somnath Pride)", "गीर गाय (Gir)", "बाप: GR-07 (Junagadh) • मां: Kasturi", 5100, 4.9, 110, 400, 70, "NDDB", Species.CATTLE),
@@ -317,7 +318,8 @@ object SampleData {
             scientificTitle = "Subclinical Endometritis / White Discharge",
             description = "पशु बार-बार हीट में आता है परंतु ठहरता नहीं। डिस्चार्ज में हल्का मटमैलापन या सफेद डोरे दिखाई देते हैं।",
             fieldProtocol = "ए.आई. से 24 घंटे पूर्व या 24 घंटे बाद ल्यूगाल आयोडीन (1:10) या सेफप्रिन इन्ट्रा-यूटेराइन घोल डालें। 2 चक्रों तक प्राकृतिक संभोग न कराएं।",
-            recommendedMedicines = listOf("Ceftiofur IU Infusion (500mg)", "Lugol's Iodine 1%", "Utrovet / Replanta Syrup 500ml")
+            recommendedMedicines = listOf("Ceftiofur IU Infusion (500mg)", "Lugol's Iodine 1%", "Utrovet / Replanta Syrup 500ml"),
+            durationCategory = RepeatDurationCategory.SHORT_TERM
         ),
         RepeatBreederCause(
             id = "rb_luteal_defect",
@@ -325,7 +327,8 @@ object SampleData {
             scientificTitle = "Luteal Phase Defect / Early Embryonic Death (EED)",
             description = "भ्रूण 16-20 दिन पर जीवित नहीं रह पाता क्योंकि कॉर्पस ल्यूटियम पर्याप्त प्रोजेस्टेरोन हार्मोन नहीं बना पाता।",
             fieldProtocol = "ए.आई. के दिन GnRH (Receptal 2.5ml IM) लगाएं। ए.आई. के 5वें दिन हाइड्रोक्सीप्रोजेस्टेरोन (Duraprogen 750mg IM) लगाएं।",
-            recommendedMedicines = listOf("Buserelin Acetate (Receptal 2.5ml IM)", "Hydroxyprogesterone 750mg IM", "Vitamin E + Selenium Injections")
+            recommendedMedicines = listOf("Buserelin Acetate (Receptal 2.5ml IM)", "Hydroxyprogesterone 750mg IM", "Vitamin E + Selenium Injections"),
+            durationCategory = RepeatDurationCategory.LONG_TERM
         ),
         RepeatBreederCause(
             id = "rb_mineral_deficiency",
@@ -333,7 +336,8 @@ object SampleData {
             scientificTitle = "Nutritional Trace Mineral (Cu, Zn, Co, Se) Deficiency",
             description = "तांबा, जस्ता, कोबाल्ट व विटामिन-A, E की कमी से अंडाशय निष्क्रिय (Inactive Ovaries) हो जाता है या साइलेंट हीट होती है।",
             fieldProtocol = "चीलेटेड मिनरल मिक्सचर 50 ग्राम प्रतिदिन 60 दिनों तक खिलाएं। फास्फोरस व विटामिन AD3E के 3 इंजेक्शन 7-7 दिन के अंतराल पर लगाएं।",
-            recommendedMedicines = listOf("Chelated Agrimin Forte (50g daily)", "Tonophosphan / Fostone 10ml IM", "Intavita / Vit-AD3E Injection")
+            recommendedMedicines = listOf("Chelated Agrimin Forte (50g daily)", "Tonophosphan / Fostone 10ml IM", "Intavita / Vit-AD3E Injection"),
+            durationCategory = RepeatDurationCategory.SHORT_TERM
         ),
         RepeatBreederCause(
             id = "rb_delayed_ovulation",
@@ -341,7 +345,8 @@ object SampleData {
             scientificTitle = "Delayed Ovulation / Heat Stress Anovulation",
             description = "गर्मी के मौसम में अंडा समय पर नहीं फूटता, जब तक सीमन के शुक्राणु मर चुके होते हैं।",
             fieldProtocol = "डबल ए.आई. प्रोटोकॉल अपनाएं: पहली ए.आई. हीट दिखने के 12 घंटे बाद तथा दूसरी ए.आई. 24 घंटे बाद। ए.आई. के समय सिर पर ठंडा पानी डालें।",
-            recommendedMedicines = listOf("Double AI Schedule (12h + 24h)", "Chorulon (hCG 1500 IU IM)", "Electrolyte & Betaine Coolers")
+            recommendedMedicines = listOf("Double AI Schedule (12h + 24h)", "Chorulon (hCG 1500 IU IM)", "Electrolyte & Betaine Coolers"),
+            durationCategory = RepeatDurationCategory.SHORT_TERM
         ),
         RepeatBreederCause(
             id = "rb_pyometra",
@@ -349,7 +354,8 @@ object SampleData {
             scientificTitle = "Chronic Pyometra / Cervicitis / Salpingitis",
             description = "गर्भाशय में पुराना मवाद भरा रहता है। ग्रीवा (Cervix) सूजी व लाल होती है, जिससे शुक्राणु आगे नहीं बढ़ पाते।",
             fieldProtocol = "PGF2alpha (Cloprostenol 2ml IM) लगाएं ताकि गर्भाशय का मुंह खुले और मवाद बाहर निकले। इसके बाद 3 दिन तक एंटीबायोटिक वॉश दें।",
-            recommendedMedicines = listOf("Pragma / Lutalyse 2ml IM (PGF2a)", "Excenel IU Wash 3 Days", "Septomax Bolus (Uterine Cleanser)")
+            recommendedMedicines = listOf("Pragma / Lutalyse 2ml IM (PGF2a)", "Excenel IU Wash 3 Days", "Septomax Bolus (Uterine Cleanser)"),
+            durationCategory = RepeatDurationCategory.LONG_TERM
         ),
         RepeatBreederCause(
             id = "rb_bull_semen",
@@ -357,7 +363,8 @@ object SampleData {
             scientificTitle = "Substandard Semen Motility / Incorrect AI Placement",
             description = "खराब लिक्विड नाइट्रोजन लेवल, गलत थॉइंग (37°C पर 30 सेकंड न करना) या गन को सर्विक्स के बॉडी में न रखना।",
             fieldProtocol = "हमेशा प्रमाणित A-ग्रेड सीमन स्ट्रॉ (Conception Rate >60%) का चयन करें। थॉइंग तापमान डिजिटल थर्मामीटर से 37°C सुनिश्चित करें।",
-            recommendedMedicines = listOf("A-Grade Progeny Tested Semen", "Digital Thawing Monitor (37°C/30s)", "Mid-Cervical Gun Deposition")
+            recommendedMedicines = listOf("A-Grade Progeny Tested Semen", "Digital Thawing Monitor (37°C/30s)", "Mid-Cervical Gun Deposition"),
+            durationCategory = RepeatDurationCategory.SHORT_TERM
         )
     )
 

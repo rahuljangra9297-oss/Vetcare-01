@@ -23,7 +23,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.data.DrugItem
+import com.example.data.*
 import com.example.ui.components.*
 import com.example.ui.theme.*
 import com.example.viewmodel.VetCareViewModel
@@ -38,6 +38,10 @@ fun DrugsDirectoryScreen(
     val shaefferLength by viewModel.shaefferLengthInches.collectAsState()
     val shaefferGirth by viewModel.shaefferGirthInches.collectAsState()
     val bodyWeightKg by viewModel.bodyWeightKg.collectAsState()
+    val selectedSpecies by viewModel.selectedSpecies.collectAsState()
+    val pregnancyStatus by viewModel.pregnancyStatus.collectAsState()
+    val pregnancyMonth by viewModel.pregnancyMonth.collectAsState()
+    val maxInjectVolume = viewModel.getMaxInjectionVolumePerSite(selectedSpecies)
 
     var activeTab by remember { mutableStateOf(0) }
     var selectedDrugForModal by remember { mutableStateOf<DrugItem?>(null) }
@@ -189,9 +193,16 @@ fun DrugsDirectoryScreen(
             // Shaeffer's Weight & Dosage Engine
             item {
                 ShaeffersWeightCard(
+                    species = selectedSpecies,
+                    pregnancyStatus = pregnancyStatus,
+                    pregnancyMonth = pregnancyMonth,
                     lengthInches = shaefferLength,
                     girthInches = shaefferGirth,
                     weightKg = bodyWeightKg,
+                    maxInjectionVolume = maxInjectVolume,
+                    onSpeciesChange = { viewModel.setSpecies(it) },
+                    onPregnancyChange = { viewModel.setPregnancyStatus(it) },
+                    onPregnancyMonthChange = { viewModel.setPregnancyMonth(it) },
                     onUpdate = { l, g -> viewModel.updateShaefferDimensions(l, g) }
                 )
             }
@@ -357,9 +368,16 @@ fun DrugStockCard(
 
 @Composable
 fun ShaeffersWeightCard(
+    species: Species,
+    pregnancyStatus: PregnancyStatus,
+    pregnancyMonth: Int,
     lengthInches: Double,
     girthInches: Double,
     weightKg: Double,
+    maxInjectionVolume: String,
+    onSpeciesChange: (Species) -> Unit,
+    onPregnancyChange: (PregnancyStatus) -> Unit,
+    onPregnancyMonthChange: (Int) -> Unit,
     onUpdate: (Double, Double) -> Unit
 ) {
     Card(
@@ -369,43 +387,174 @@ fun ShaeffersWeightCard(
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "📐 मल्टी-स्पीशीज खुराक व शेफर्स कैलकुलेटर",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Black,
+                    color = MedicalCyanDark
+                )
+                Surface(
+                    color = MedicalCyanLight,
+                    shape = RoundedCornerShape(6.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MedicalCyanPrimary)
+                ) {
+                    Text(
+                        text = "${species.icon} ${species.hindiName}",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Black,
+                        color = MedicalCyanDark,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Species Selector Chips
             Text(
-                text = "📐 शेफर्स सूत्र वजन कैलकुलेटर (Shaeffer's Formula):",
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Black,
-                color = MedicalCyanDark
-            )
-            Text(
-                text = "वजन (lbs) = (लंबाई इंच × घेरा इंच²) ÷ 300  |  किग्रा = lbs ÷ 2.2",
-                fontSize = 11.sp,
+                text = "पशु प्रजाति चुनें (Species Scaling):",
+                fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 color = Slate900
             )
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Species.values().forEach { sp ->
+                    val isSelected = species == sp
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = { onSpeciesChange(sp) },
+                        label = { Text("${sp.icon} ${sp.hindiName}", fontWeight = FontWeight.Bold, fontSize = 11.sp) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MedicalCyanPrimary,
+                            selectedLabelColor = Color.White
+                        )
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Pregnancy Status & Contraindication Alert
+            Text(
+                text = "गर्भ स्थिति (Pregnancy Status):",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = Slate900
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                PregnancyStatus.values().forEach { ps ->
+                    val isSelected = pregnancyStatus == ps
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = { onPregnancyChange(ps) },
+                        label = { Text(ps.label, fontWeight = FontWeight.Bold, fontSize = 11.sp) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = if (ps == PregnancyStatus.PREGNANT) RedAlert else MedicalCyanPrimary,
+                            selectedLabelColor = Color.White
+                        )
+                    )
+                }
+            }
+
+            if (pregnancyStatus == PregnancyStatus.PREGNANT) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Surface(
+                    color = RedAlertLight,
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(2.dp, RedAlert),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Warning, contentDescription = null, tint = RedAlert, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "⚠️ सख्त निषेध अलर्ट (Pregnancy Contraindications):",
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.Black,
+                                color = RedAlert
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "🔴 डेक्सामेथासोन, आइसोफ्लुप्रेडोन, एलबेंडाजोल (1st Trimester) व लाइव टीके सख्त वर्जित हैं (गर्भपात का भारी खतरा)।",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = RedAlert
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("गर्भ का महीना: $pregnancyMonth वां महीना", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = RedAlert)
+                            Slider(
+                                value = pregnancyMonth.toFloat(),
+                                onValueChange = { onPregnancyMonthChange(it.toInt()) },
+                                valueRange = 1f..9f,
+                                steps = 7,
+                                modifier = Modifier.weight(1f).padding(start = 10.dp),
+                                colors = SliderDefaults.colors(thumbColor = RedAlert, activeTrackColor = RedAlert)
+                            )
+                        }
+                    }
+                }
+            }
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            Text(text = "1. पशु की लंबाई (पॉइंट ऑफ शोल्डर से पिन बोन): ${lengthInches.toInt()} इंच", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Slate900)
+            // Body dimensions sliders
+            Text(
+                text = "1. पशु की लंबाई (Point of Shoulder to Pin Bone): ${lengthInches.toInt()} इंच",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = Slate900
+            )
             Slider(
                 value = lengthInches.toFloat(),
                 onValueChange = { onUpdate(it.toDouble(), girthInches) },
-                valueRange = 40f..90f,
+                valueRange = 15f..95f,
                 colors = SliderDefaults.colors(thumbColor = MedicalCyanPrimary, activeTrackColor = MedicalCyanPrimary)
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
-            Text(text = "2. छाती का सीना घेरा (Heart Girth): ${girthInches.toInt()} इंच", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Slate900)
+            Text(
+                text = "2. छाती का सीना घेरा (Heart Girth): ${girthInches.toInt()} इंच",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = Slate900
+            )
             Slider(
                 value = girthInches.toFloat(),
                 onValueChange = { onUpdate(lengthInches, it.toDouble()) },
-                valueRange = 45f..100f,
+                valueRange = 18f..105f,
                 colors = SliderDefaults.colors(thumbColor = MedicalCyanPrimary, activeTrackColor = MedicalCyanPrimary)
             )
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
+            // Scaled Dose & Site Limit Summary Card
             Surface(
-                color = Color.White,
+                color = DaylightCanvas,
                 shape = RoundedCornerShape(14.dp),
                 border = androidx.compose.foundation.BorderStroke(2.dp, MedicalCyanPrimary),
                 modifier = Modifier.fillMaxWidth()
@@ -415,20 +564,46 @@ fun ShaeffersWeightCard(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = "गणना किया गया पशु भार (Calculated Weight):",
+                        text = "गणना किया गया पशु भार (${species.hindiName} Calibrated):",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = MedicalCyanDark
                     )
                     Text(
                         text = "$weightKg किग्रा (kg)",
-                        fontSize = 26.sp,
+                        fontSize = 28.sp,
                         fontWeight = FontWeight.Black,
                         color = Slate900
                     )
-                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Dynamic Species Volume Limit Badge
+                    Surface(
+                        color = RedAlertLight,
+                        shape = RoundedCornerShape(8.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.2.dp, RedAlert)
+                    ) {
+                        Text(
+                            text = "💉 $maxInjectionVolume",
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Black,
+                            color = RedAlert,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    val recommendedDose = when (species) {
+                        Species.CATTLE, Species.BUFFALO -> "${(weightKg / 20.0).coerceAtLeast(1.0).toInt()} से ${(weightKg / 15.0).coerceAtLeast(2.0).toInt()} ml Deep IM"
+                        Species.GOAT, Species.SHEEP -> "${(weightKg / 15.0).coerceAtLeast(0.5).let { "%.1f".format(it) }} से ${(weightKg / 10.0).coerceAtLeast(1.0).let { "%.1f".format(it) }} ml IM (विभाजित करें)"
+                        Species.DOG -> "${(weightKg * 0.1).coerceAtLeast(0.3).let { "%.1f".format(it) }} से ${(weightKg * 0.15).coerceAtLeast(0.5).let { "%.1f".format(it) }} ml IM/SC"
+                        Species.CAT -> "${(weightKg * 0.08).coerceAtLeast(0.1).let { "%.2f".format(it) }} से ${(weightKg * 0.12).coerceAtLeast(0.2).let { "%.2f".format(it) }} ml SC"
+                    }
+
                     Text(
-                        text = "अनुशंसित एंटीबायोटिक खुराक: ${(weightKg / 20.0).toInt()} से ${(weightKg / 15.0).toInt()} ml",
+                        text = "अनुशंसित एंटीबायोटिक खुराक: $recommendedDose",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Black,
                         color = Slate900
